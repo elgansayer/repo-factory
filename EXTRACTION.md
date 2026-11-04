@@ -11,7 +11,7 @@ the cutover receipts listed in #9822 exist. Those receipts are build/test, confi
 load, preserved state identities, dry-run deploy, one bounded task, recovery and
 exercised rollback.
 
-- Source: `elgansayer/elgl` `main`, first at `3a1e240261e710d8b8e105d65fe05be9eca32d77`, synced to `7f082afea1afe6b1e302553919c215725c468f88` (2026-11-04; deterministic re-filter, earlier history unchanged)
+- Source: `elgansayer/elgl` `main`, first at `3a1e240261e710d8b8e105d65fe05be9eca32d77`, synced to `47cd95488086fc102a983105f11310fce7b78d7a` (2026-11-04; deterministic re-filter, earlier history unchanged)
 - Method: `git filter-repo` 2.47.0 with `--paths-from-file extraction/paths.txt`.
   It preserves history for those paths only.
 - Commit map: `extraction/elgl-commit-map.txt`, in the format
