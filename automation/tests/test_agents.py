@@ -614,6 +614,7 @@ class TestAgentProviders(unittest.TestCase):
         self.assertIn("gpt-5.6-sol", runner.commands[0])
         self.assertIn("--ignore-user-config", runner.commands[0])
         self.assertIn("--ignore-rules", runner.commands[0])
+        self.assertIn("--skip-git-repo-check", runner.commands[0])
         self.assertNotIn("-a", runner.commands[0])
         self.assertEqual(runner.commands[0][-1], "-")
 
@@ -808,6 +809,14 @@ class TestAgentProviders(unittest.TestCase):
 
         self.assertEqual(health.status, ProviderStatus.UNAVAILABLE)
         self.assertIn("opencode-go/kimi-k3", health.detail or "")
+        self.assertEqual(runner.commands, [("opencode", "models", "opencode-go")])
+
+    def test_opencode_rejects_a_catalogue_with_only_a_similarly_named_model(self):
+        runner = FakeProcessRunner("OpenCode Go\nopencode-go/kimi-k3-preview")
+        provider = OpenCodeProvider(process_runner=runner)
+        with patch("openhands_factory.agents.cli.shutil.which", return_value="/usr/bin/opencode"):
+            health = provider.health()
+        self.assertEqual(health.status, ProviderStatus.UNAVAILABLE)
         self.assertEqual(runner.commands, [("opencode", "models", "opencode-go")])
 
     def test_opencode_provider(self):
