@@ -1,0 +1,16 @@
+automation/
+factory-dashboard/
+config/factory/
+config/systemd/
+docs/factory/
+scripts/decommission-legacy-factory.sh
+scripts/deploy-and-start-factory.sh
+scripts/install-factory-env.sh
+scripts/install-repo-factory-instance.sh
+scripts/maintain-factory-host-storage.sh
+scripts/migrate-factory-to-secondary-disk.sh
+scripts/relocate-home-cache-to-second-disk.sh
+scripts/repair-factory-host.sh
+scripts/start-factory.sh
+setup-debian.sh
+LICENSE
