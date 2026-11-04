@@ -59,3 +59,22 @@ def neptune_environment(tmp_path: Path) -> dict[str, str]:
 @pytest.fixture
 def neptune_config(neptune_environment: dict[str, str]) -> FactoryConfig:
     return FactoryConfig.from_environment(neptune_environment)
+
+
+_ELGL_CONTRACTS = Path(__file__).parent / "tests" / "elgl_repository_contracts.txt"
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Skip listed Elgl application contracts outside the Elgl tree only."""
+    if (Path(__file__).parent.parent / "frontend").is_dir():
+        return
+    owned = {
+        line.strip()
+        for line in _ELGL_CONTRACTS.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    found = {item.nodeid for item in items} & owned
+    marker = pytest.mark.skip(reason="Elgl application CI contract; enforced in elgansayer/elgl")
+    for item in items:
+        if item.nodeid in found:
+            item.add_marker(marker)
