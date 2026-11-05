@@ -687,7 +687,7 @@ def test_factory_environment_template_contains_runtime_path_settings() -> None:
     assert "FACTORY_LANE_WIP_LIMITS=architect=1,dependency=12,factory=8" in template
     assert "FACTORY_COMPONENT_WIP_LIMITS=" in template
     assert "FACTORY_LABEL_RECONCILIATION_BATCH_SIZE=25" in template
-    assert "FACTORY_REQUIRE_TRUSTED_INTAKE=true" in template
+    assert "FACTORY_REQUIRE_TRUSTED_INTAKE=false" in template
     assert "FACTORY_TRUSTED_GITHUB_ACTORS=elgansayer,app/github-actions" in template
     assert "FACTORY_CONTROL_GITHUB_ACTORS=elgansayer" in template
     assert f"FACTORY_ARCHITECTURE={EXPECTED_FACTORY_ARCHITECTURE}" in template
@@ -723,7 +723,7 @@ def test_host_repair_preserves_the_production_parallelism_limit() -> None:
     assert "FACTORY_MAX_QUEUED_CI=12" in repair
     assert "FACTORY_LANE_WIP_LIMITS=architect=1,dependency=12,factory=8" in repair
     assert "FACTORY_MAX_PARALLEL_JOBS=5" not in repair
-    assert "FACTORY_REQUIRE_TRUSTED_INTAKE=true" in repair
+    assert "FACTORY_REQUIRE_TRUSTED_INTAKE=false" in repair
     assert "FACTORY_TRUSTED_GITHUB_ACTORS=elgansayer,app/github-actions" in repair
     assert "FACTORY_CONTROL_GITHUB_ACTORS=elgansayer" in repair
 
@@ -871,7 +871,7 @@ def test_workout_instance_is_hourly_single_job_and_uses_shared_capacity() -> Non
     assert "FACTORY_REPOSITORY_PROFILE=workout-agent" in profile
     assert "FACTORY_MAX_PARALLEL_JOBS=1" in profile
     assert "FACTORY_NEW_ISSUE_INTERVAL_SECONDS=3600" in profile
-    assert "FACTORY_REQUIRE_READY_LABEL=true" in profile
+    assert "FACTORY_REQUIRE_READY_LABEL=false" in profile
     assert "FACTORY_PROVIDER_CAPACITY_DIR=/var/lib/repo-factory/shared" in profile
     assert "GITHUB_REPOSITORY=elgansayer/workout-agent" in profile
 

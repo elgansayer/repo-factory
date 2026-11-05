@@ -204,8 +204,8 @@ def test_atomic_publication_preserves_concurrent_file_link_or_directory(staging,
 @pytest.mark.parametrize(
     "edit",
     [
-        lambda s: s.replace("FACTORY_NEPTUNE_ENABLED=false", "FACTORY_NEPTUNE_ENABLED=true"),
-        lambda s: s + "FACTORY_NEPTUNE_ENABLED=false\n",
+        lambda s: s.replace("FACTORY_NEPTUNE_ENABLED=true", "FACTORY_NEPTUNE_ENABLED=false"),
+        lambda s: s + "FACTORY_NEPTUNE_ENABLED=true\n",
         lambda s: s.replace(
             "FACTORY_REPOSITORY_PROFILE=neptune", "FACTORY_REPOSITORY_PROFILE=elgl"
         ),
