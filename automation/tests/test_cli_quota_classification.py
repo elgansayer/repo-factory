@@ -20,7 +20,9 @@ def test_codex_usage_limit_is_quota_not_transport() -> None:
     )
     assert failure.kind is AgentFailureKind.PROVIDER_QUOTA
     assert failure.retry_after_seconds is not None
-    assert 3 * 24 * 3600 < failure.retry_after_seconds <= 7 * 24 * 3600
+    # The classifier reads the real clock, so only the bound is asserted here;
+    # exact parsing of the absolute time is covered below with a fixed NOW.
+    assert 0 <= failure.retry_after_seconds <= 7 * 24 * 3600
 
 
 def test_absolute_retry_time_is_parsed_and_bounded() -> None:
