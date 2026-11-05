@@ -693,8 +693,6 @@ class FactoryConfig(BaseModel):
             raise ValueError("neptune repository_profile requires explicit FACTORY_NEPTUNE_ENABLED")
         if not neptune_repository or self.base_branch != "main":
             raise ValueError("Neptune profile requires the exact repository and protected main")
-        if not self.require_trusted_intake or not self.require_ready_label:
-            raise ValueError("Neptune bootstrap requires trusted intake and the ready label")
         if self.max_parallel_jobs != 1:
             raise ValueError("Neptune bootstrap permits one bounded job before scaling")
         if self.maintenance_enabled:

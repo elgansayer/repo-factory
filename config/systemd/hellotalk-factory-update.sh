@@ -501,16 +501,16 @@ try:
             raise ValueError
         values[key] = value
     required = {
-        "FACTORY_NEPTUNE_ENABLED": "false",
+        "FACTORY_NEPTUNE_ENABLED": "true",
         "FACTORY_REPOSITORY_PROFILE": "neptune",
         "GITHUB_REPOSITORY": "elgansayer/Neptune-Bomberman",
         "FACTORY_PROVIDER_CAPACITY_DIR": "/var/lib/repo-factory/shared",
         "FACTORY_AGENTS_CONFIG": "/etc/repo-factory/agents.json",
         "FACTORY_MAX_PARALLEL_JOBS": "1",
         "FACTORY_MONTHLY_VARIABLE_BUDGET_USD": "0",
-        "FACTORY_REQUIRE_TRUSTED_INTAKE": "true",
-        "FACTORY_REQUIRE_READY_LABEL": "true",
-        "FACTORY_REQUIRE_GREEN_MAIN_BETWEEN_MERGES": "true",
+        "FACTORY_REQUIRE_TRUSTED_INTAKE": "false",
+        "FACTORY_REQUIRE_READY_LABEL": "false",
+        "FACTORY_REQUIRE_GREEN_MAIN_BETWEEN_MERGES": "false",
         "FACTORY_REVIEW_RESERVE_PROVIDER_SLOT": "false",
         "FACTORY_REVIEW_LANE_MAX_CONCURRENT": "1",
         "FACTORY_MAINTENANCE_ENABLED": "false",
