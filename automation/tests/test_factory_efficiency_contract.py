@@ -60,5 +60,10 @@ def test_production_provider_failures_back_off_before_reprobing_subscriptions() 
     assert circuit["transport_cooldown_seconds"] >= 1800
     assert circuit["rate_limit_cooldown_seconds"] >= 3600
     assert circuit["quota_cooldown_seconds"] >= 21600
-    assert circuit["auth_cooldown_seconds"] >= 21600
+    # An authentication failure is rejected before any model call, and the
+    # half-open breaker admits one probe at a time, so a short auth cooldown
+    # costs one failed CLI launch per window. A 6 h auth cooldown kept the only
+    # live provider (OpenCode Go) out of service on 2026-11-05 after one stale
+    # trip while every other subscription was in a quota window.
+    assert 1800 <= circuit["auth_cooldown_seconds"] <= 3600
     assert config["routing"]["same_provider_retries"] == 0
