@@ -11,7 +11,7 @@ the cutover receipts listed in #9822 exist. Those receipts are build/test, confi
 load, preserved state identities, dry-run deploy, one bounded task, recovery and
 exercised rollback.
 
-- Source: `elgansayer/elgl` `main`, first at `3a1e240261e710d8b8e105d65fe05be9eca32d77`, synced to `47cd95488086fc102a983105f11310fce7b78d7a` (2026-11-04; deterministic re-filter, earlier history unchanged)
+- Source: `elgansayer/elgl` `main`, first at `3a1e240261e710d8b8e105d65fe05be9eca32d77`, synced to `9216c98103cc1e6e776abc3bef78b378fed9520f` (2026-11-05; fresh filter merged onto staged main, repository-only files re-applied)
 - Method: `git filter-repo` 2.47.0 with `--paths-from-file extraction/paths.txt`.
   It preserves history for those paths only.
 - Commit map: `extraction/elgl-commit-map.txt`, in the format
@@ -19,8 +19,8 @@ exercised rollback.
   extraction.
 - Audit: no credential patterns were found in the filtered history. The
   `.env.example` and `factory.env.example` files contain placeholders only.
-- Actions: disabled on this repository until the entitlement and charging check
-  is done.
+- Actions: enabled 2026-11-05 after the repository was made public (free
+  minutes). `ci.yml` is the canonical gate the host updater checks.
 - Packaging: the distribution is still `repo-factory`, the import namespace is
   still `openhands_factory`, and both are unchanged.
 
