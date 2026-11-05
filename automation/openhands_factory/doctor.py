@@ -1095,11 +1095,8 @@ def run_doctor(
             config.repository / "tools/merge_gate/run.py",
         )
         if config.tests_only_merging
-        else (
-            config.repository / "tools/check_openhands_control_plane.py",
-            config.repository / "tools/test_openhands_control_plane.py",
-        )
-        if config.repository_profile == "workout-agent"
+        else ()
+        if config.repository_profile in {"workout-agent", "generic"}
         else (
             config.repository / "scripts/verify-constitution.mjs",
             config.repository / "scripts/check-conflict-markers.mjs",

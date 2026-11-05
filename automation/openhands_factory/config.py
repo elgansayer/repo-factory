@@ -14,6 +14,9 @@ from openhands_factory.architecture_guard import EXPECTED_FACTORY_ARCHITECTURE
 from openhands_factory.exceptions import ConfigurationError
 from openhands_factory.neptune_merge import NEPTUNE_REPOSITORY
 
+# The host resource gate still bounds total concurrent agent runs across instances.
+NEPTUNE_MAX_PARALLEL_JOBS = 2
+
 
 class ProviderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -418,7 +421,7 @@ class FactoryConfig(BaseModel):
     profile_store: Path = Path("/var/lib/hellotalk-factory/profiles")
     worktree_dir: Path = Path("/var/lib/hellotalk-factory/worktrees")
     recovery_dir: Path = Path("/var/lib/hellotalk-factory/recovery")
-    repository_profile: Literal["hellotalk", "workout-agent", "neptune"] = "hellotalk"
+    repository_profile: Literal["hellotalk", "workout-agent", "neptune", "generic"] = "hellotalk"
     # "independent-review" buys an AI review and publishes factory/independent-review
     # before merge. "ci-gated" merges once exact-head required CI passes; it buys no
     # review conversation and ignores a retired review status. Separate from
@@ -693,8 +696,10 @@ class FactoryConfig(BaseModel):
             raise ValueError("neptune repository_profile requires explicit FACTORY_NEPTUNE_ENABLED")
         if not neptune_repository or self.base_branch != "main":
             raise ValueError("Neptune profile requires the exact repository and protected main")
-        if self.max_parallel_jobs != 1:
-            raise ValueError("Neptune bootstrap permits one bounded job before scaling")
+        if not 1 <= self.max_parallel_jobs <= NEPTUNE_MAX_PARALLEL_JOBS:
+            raise ValueError(
+                f"Neptune permits at most {NEPTUNE_MAX_PARALLEL_JOBS} concurrent bounded jobs"
+            )
         if self.maintenance_enabled:
             raise ValueError("Neptune bootstrap does not start autonomous maintenance analysis")
         if self.monthly_variable_budget_usd != 0 or not self.agents.routing_enabled:
@@ -824,7 +829,7 @@ class FactoryConfig(BaseModel):
                     env.get("FACTORY_RECOVERY_DIR", cls.model_fields["recovery_dir"].default)
                 ),
                 repository_profile=cast(
-                    Literal["hellotalk", "workout-agent", "neptune"],
+                    Literal["hellotalk", "workout-agent", "neptune", "generic"],
                     env.get("FACTORY_REPOSITORY_PROFILE", "hellotalk"),
                 ),
                 neptune_activation_enabled=boolean("FACTORY_NEPTUNE_ENABLED", False),

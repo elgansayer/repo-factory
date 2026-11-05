@@ -467,6 +467,41 @@ def test_repository_profile_paths_and_shared_capacity_are_configurable(tmp_path:
     assert configured.provider_capacity_dir == tmp_path / "shared"
 
 
+def test_generic_profile_onboards_any_repository(tmp_path: Path) -> None:
+    root = Path(__file__).parents[2]
+    prompt_dir = root / "automation/prompts"
+    configured = FactoryConfig.from_environment(
+        environment(
+            FACTORY_REPOSITORY=str(tmp_path / "repository"),
+            FACTORY_STATE_DIR=str(tmp_path / "state"),
+            FACTORY_REPOSITORY_PROFILE="generic",
+            FACTORY_PROMPT_DIR=str(prompt_dir),
+            FACTORY_SYSTEM_PROMPT_PATH=str(prompt_dir / "generic-system.md"),
+            FACTORY_PROVIDER_CAPACITY_DIR=str(tmp_path / "shared"),
+            FACTORY_MAX_PARALLEL_JOBS="2",
+            GITHUB_REPOSITORY="someone/any-repository",
+        )
+    )
+
+    assert configured.repository_profile == "generic"
+    assert configured.system_prompt_path.is_file()
+    assert not configured.require_ready_label
+    assert not configured.require_trusted_intake
+    add_repo = (root / "scripts/add-repo.sh").read_text(encoding="utf-8")
+    assert "FACTORY_REPOSITORY_PROFILE=generic" in add_repo
+    assert "generic-system.md" in add_repo
+
+
+def test_generic_profile_verifies_any_change_with_a_dependency_free_preflight(
+    tmp_path: Path,
+) -> None:
+    from openhands_factory.verification import commands_for
+
+    commands = commands_for(tmp_path, {Path("src/anything.rs")}, "generic")
+
+    assert [command.arguments for command in commands] == [("git", "diff", "--check", "HEAD")]
+
+
 def test_unknown_repository_profile_is_rejected() -> None:
     with pytest.raises(ConfigurationError, match="repository_profile"):
         FactoryConfig.from_environment(environment(FACTORY_REPOSITORY_PROFILE="unknown"))
@@ -864,12 +899,13 @@ def test_repo_factory_service_is_instance_scoped_and_resource_bounded() -> None:
     assert "MemoryMax=7G" in slice_unit
 
 
-def test_workout_instance_is_hourly_single_job_and_uses_shared_capacity() -> None:
+def test_workout_instance_runs_two_jobs_and_uses_shared_capacity() -> None:
     root = Path(__file__).parents[2]
     profile = (root / "config/factory/instances/workout-agent.env").read_text(encoding="utf-8")
 
     assert "FACTORY_REPOSITORY_PROFILE=workout-agent" in profile
-    assert "FACTORY_MAX_PARALLEL_JOBS=1" in profile
+    assert "FACTORY_MAX_PARALLEL_JOBS=2" in profile
+    assert "FACTORY_NEW_ISSUES_PER_INTERVAL=4" in profile
     assert "FACTORY_NEW_ISSUE_INTERVAL_SECONDS=3600" in profile
     assert "FACTORY_REQUIRE_READY_LABEL=false" in profile
     assert "FACTORY_PROVIDER_CAPACITY_DIR=/var/lib/repo-factory/shared" in profile
