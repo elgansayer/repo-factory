@@ -1,0 +1,9 @@
+[Unit]
+Description=Restart extra Repository Factory instances onto each deployed runtime
+
+[Path]
+PathChanged=/opt/hellotalk-factory/runtime-source.sha
+Unit=repo-factory-follow.service
+
+[Install]
+WantedBy=paths.target

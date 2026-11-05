@@ -5694,3 +5694,32 @@ def test_a_rebuilt_job_is_not_rebuilt_again(
     assert result is not None
     assert result.last_error == "Repair limit exceeded: no failed check reported"
     assert github.superseded_pull_requests == []
+
+
+@pytest.mark.parametrize("phase", ["quality_repair", "repair"])
+def test_consecutive_no_change_repairs_spend_the_remaining_budget(
+    tmp_path: Path, phase: str
+) -> None:
+    from openhands_factory.pipeline import (
+        MAX_CONSECUTIVE_QUALITY_REPAIRS,
+        NO_CHANGE_REPAIR_KEY,
+    )
+
+    pipeline = FactoryPipeline(
+        config(tmp_path),
+        github=GitHub(),  # type: ignore[arg-type]
+        conversations=Conversations(),  # type: ignore[arg-type]
+    )
+    job = pipeline.refresh()["42"]
+
+    pipeline._record_no_change_repair(job, phase)
+    assert job.failure_counts[NO_CHANGE_REPAIR_KEY] == 1
+    assert job.quality_repairs == 0 and job.repair_attempts == 0
+
+    pipeline._record_no_change_repair(job, phase)
+    if phase == "quality_repair":
+        assert job.quality_repairs == MAX_CONSECUTIVE_QUALITY_REPAIRS
+        assert job.repair_attempts == 0
+    else:
+        assert job.repair_attempts == 5
+        assert job.quality_repairs == 0

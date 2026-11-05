@@ -506,7 +506,7 @@ try:
         "GITHUB_REPOSITORY": "elgansayer/Neptune",
         "FACTORY_PROVIDER_CAPACITY_DIR": "/var/lib/repo-factory/shared",
         "FACTORY_AGENTS_CONFIG": "/etc/repo-factory/agents.json",
-        "FACTORY_MAX_PARALLEL_JOBS": "1",
+        "FACTORY_MAX_PARALLEL_JOBS": "2",
         "FACTORY_MONTHLY_VARIABLE_BUDGET_USD": "0",
         "FACTORY_REQUIRE_TRUSTED_INTAKE": "false",
         "FACTORY_REQUIRE_READY_LABEL": "false",
@@ -570,13 +570,24 @@ install_service_configuration() {
     "$commit" config/systemd/repo-factory-update.timer \
     /etc/systemd/system/repo-factory-update.timer 0644 || return 1
   install_runtime_file_from_commit \
-    "$commit" config/factory/instances/hellotalk.env \
-    /etc/repo-factory/instances/hellotalk.env 0644 || return 1
+    "$commit" config/systemd/repo-factory-follow.path \
+    /etc/systemd/system/repo-factory-follow.path 0644 || return 1
   install_runtime_file_from_commit \
-    "$commit" config/factory/instances/workout-agent.env \
-    /etc/repo-factory/instances/workout-agent.env 0644 || return 1
+    "$commit" config/systemd/repo-factory-follow.service \
+    /etc/systemd/system/repo-factory-follow.service 0644 || return 1
+  # Every committed instance profile is repository-managed, except Neptune's,
+  # which stays operator-owned once staged.
+  local profile name
+  while IFS= read -r profile; do
+    name=$(basename -- "$profile" .env)
+    [[ "$name" =~ ^[a-z0-9][a-z0-9-]{0,40}$ ]] || continue
+    [ "$name" = neptune ] && continue
+    install_runtime_file_from_commit \
+      "$commit" "$profile" "/etc/repo-factory/instances/$name.env" 0644 || return 1
+  done < <(factory_git_read ls-tree --name-only "$commit" -- config/factory/instances/ | grep '\.env$')
   stage_inactive_neptune_configuration "$commit" || return 1
   systemctl daemon-reload
+  systemctl enable --now repo-factory-follow.path >/dev/null 2>&1 || true
 }
 
 reconcile_agents_config_from_commits() {

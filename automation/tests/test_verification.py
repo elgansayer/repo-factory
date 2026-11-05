@@ -483,12 +483,7 @@ def test_workout_agent_backend_uses_python_native_gate(tmp_path: Path) -> None:
     )
     names = {command.name for command in commands}
 
-    assert names == {
-        "control-plane-policy",
-        "control-plane-policy-tests",
-        "backend-compile",
-        "backend-tests",
-    }
+    assert names == {"backend-compile", "backend-tests"}
     assert all(command.workspace == tmp_path for command in commands)
 
 

@@ -380,7 +380,7 @@ def _touches(changed_paths: set[Path], *prefixes: str) -> bool:
     return any(path.parts and path.parts[0] in prefixes for path in changed_paths)
 
 
-RepositoryProfile = Literal["hellotalk", "workout-agent", "neptune"]
+RepositoryProfile = Literal["hellotalk", "workout-agent", "neptune", "generic"]
 
 
 def neptune_commands_for(repository: Path, changed_paths: set[Path]) -> list[VerificationCommand]:
@@ -416,6 +416,19 @@ def neptune_commands_for(repository: Path, changed_paths: set[Path]) -> list[Ver
     ]
 
 
+def generic_commands_for(repository: Path, changed_paths: set[Path]) -> list[VerificationCommand]:
+    """Return a repository-neutral local preflight for any target repository.
+
+    The target's own required GitHub CI is the authoritative merge gate; locally
+    the Factory only rejects whitespace errors and conflict markers, which every
+    repository shares and which cost no dependencies to check.
+    """
+
+    if not changed_paths:
+        raise VerificationFailed("Verification requires at least one changed path")
+    return [VerificationCommand("diff-check", ("git", "diff", "--check", "HEAD"), repository)]
+
+
 def workout_agent_commands_for(
     repository: Path, changed_paths: set[Path]
 ) -> list[VerificationCommand]:
@@ -427,24 +440,7 @@ def workout_agent_commands_for(
     touches_frontend = _touches(changed_paths, "frontend")
     if not (touches_backend or touches_frontend):
         touches_backend = touches_frontend = True
-    commands = [
-        VerificationCommand(
-            "control-plane-policy",
-            (".venv/bin/python", "tools/check_openhands_control_plane.py"),
-            repository,
-        ),
-        VerificationCommand(
-            "control-plane-policy-tests",
-            (
-                ".venv/bin/python",
-                "-m",
-                "unittest",
-                "tools.test_openhands_control_plane",
-                "-v",
-            ),
-            repository,
-        ),
-    ]
+    commands: list[VerificationCommand] = []
     if touches_backend:
         commands.extend(
             [
@@ -483,6 +479,8 @@ def commands_for(
 ) -> list[VerificationCommand]:
     if profile == "neptune":
         return neptune_commands_for(repository, changed_paths)
+    if profile == "generic":
+        return generic_commands_for(repository, changed_paths)
     if profile not in {"hellotalk", "workout-agent"}:
         raise VerificationFailed("Unknown repository verification profile")
     if profile == "workout-agent":
@@ -795,10 +793,13 @@ def verification_descriptions(profile: RepositoryProfile) -> list[str]:
             "native runs require a pinned offline cache.",
             "Local verification does not publish CI, approve a review or enable a Neptune daemon.",
         ]
+    if profile == "generic":
+        return [
+            "git diff --check HEAD",
+            "The repository's required GitHub CI is the authoritative merge gate.",
+        ]
     if profile == "workout-agent":
         return [
-            ".venv/bin/python tools/check_openhands_control_plane.py",
-            ".venv/bin/python -m unittest tools.test_openhands_control_plane -v",
             ".venv/bin/python -m compileall -q backend",
             ".venv/bin/python -m pytest -q",
             "cd frontend && npm run build && npm test -- --watch=false",

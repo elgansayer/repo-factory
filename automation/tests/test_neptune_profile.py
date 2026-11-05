@@ -30,7 +30,7 @@ def test_explicit_neptune_profile_uses_existing_subscription_broker(
         ("FACTORY_REPOSITORY_PROFILE", "hellotalk"),
         ("GITHUB_REPOSITORY", "other/repository"),
         ("FACTORY_BASE_BRANCH", "stack-parent"),
-        ("FACTORY_MAX_PARALLEL_JOBS", "2"),
+        ("FACTORY_MAX_PARALLEL_JOBS", "3"),
         ("FACTORY_MAINTENANCE_ENABLED", "true"),
         ("FACTORY_MONTHLY_VARIABLE_BUDGET_USD", "1"),
         ("FACTORY_REPOSITORY", "/var/lib/hellotalk-factory/repository"),

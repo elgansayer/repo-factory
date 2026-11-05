@@ -1,0 +1,10 @@
+[Unit]
+Description=Restart extra Repository Factory instances onto the deployed runtime
+After=repo-factory-update.service
+
+[Service]
+Type=oneshot
+# The updater drains and restarts the primary and secondary instances itself.
+# Every other active instance (Neptune, add-repo.sh instances) follows here once
+# the updater has released its lock.
+ExecStart=/usr/bin/flock --wait 900 /run/lock/repo-factory-update.lock /bin/sh -c 'for unit in $(systemctl list-units --plain --no-legend --state=active "repo-factory@*.service" | cut -d" " -f1); do case "$unit" in repo-factory@hellotalk.service|repo-factory@workout-agent.service) ;; *) systemctl try-restart "$unit" ;; esac; done'

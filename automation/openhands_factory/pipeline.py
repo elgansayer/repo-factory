@@ -77,6 +77,13 @@ class _ReconciliationLeaseLost(Exception):
 
 CONFLICTING_MERGE_STATES = {"DIRTY"}
 MAX_CONSECUTIVE_QUALITY_REPAIRS = 5
+# Repairs that change nothing rarely succeed on a later identical attempt (7-day
+# measurement 2026-10-30: up to 54% of quality repairs on one route changed
+# nothing). After this many consecutive no-change repairs the remaining budget is
+# spent so the job parks instead of burning provider quota.
+NO_CHANGE_REPAIR_LIMIT = 2
+NO_CHANGE_REPAIR_KEY = "no-change-repair-streak"
+_REPAIR_PHASES = frozenset({"quality_repair", "repair"})
 # An unpublished job whose repairs ran out on a base this old is rebuilt once on
 # the current base instead of retrying old-main failures forever.
 STALE_UNPUBLISHED_BASE_AGE = timedelta(days=7)
@@ -844,6 +851,17 @@ class FactoryPipeline:
         job.quarantine_notification_pending = False
         self.jobs.save_job(job)
 
+    @staticmethod
+    def _record_no_change_repair(job: Job, phase: str) -> None:
+        streak = job.failure_counts.get(NO_CHANGE_REPAIR_KEY, 0) + 1
+        job.failure_counts[NO_CHANGE_REPAIR_KEY] = streak
+        if streak < NO_CHANGE_REPAIR_LIMIT:
+            return
+        if phase == "quality_repair":
+            job.quality_repairs = max(job.quality_repairs, MAX_CONSECUTIVE_QUALITY_REPAIRS)
+        else:
+            job.repair_attempts = max(job.repair_attempts, 5)
+
     def _run_agent(
         self,
         job: Job,
@@ -921,7 +939,11 @@ class FactoryPipeline:
             except RepositorySafetyError as error:
                 raise RuntimeError("Repository-change validation failed internally") from error
             if current_fingerprint == baseline_fingerprint:
+                if phase in _REPAIR_PHASES:
+                    self._record_no_change_repair(job, phase)
                 raise AgentTaskFailure(f"{phase.replace('_', ' ').title()} produced no changes")
+            if phase in _REPAIR_PHASES:
+                job.failure_counts.pop(NO_CHANGE_REPAIR_KEY, None)
 
         request = AgentRequest(
             phase=agent_phase,
