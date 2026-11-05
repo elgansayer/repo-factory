@@ -833,7 +833,9 @@ def test_find_control_panel_issue_requires_exact_title_and_status_label(tmp_path
     )
 
     assert issue == 62
-    assert '"Factory control panel" in:title label:factory-status' in runner.calls[0]
+    call = runner.calls[0]
+    assert call[call.index("--label") + 1] == "factory-status"
+    assert "--search" not in call
 
 
 def test_issue_update_uses_fixed_argv_without_a_shell(tmp_path: Path) -> None:

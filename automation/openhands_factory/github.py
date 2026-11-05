@@ -772,8 +772,11 @@ class GitHubClient:
                 "open",
                 "--limit",
                 "100",
-                "--search",
-                f'"{title}" in:title label:{required_label}',
+                # A label filter, not the search API: search lags and does not
+                # follow repository renames, which made this lookup miss the
+                # existing issue and open a duplicate every cycle.
+                "--label",
+                required_label,
                 "--json",
                 "number,title,labels",
             )
