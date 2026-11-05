@@ -36,7 +36,7 @@ def neptune_environment(tmp_path: Path) -> dict[str, str]:
     values = {
         "FACTORY_REPOSITORY_PROFILE": "neptune",
         "FACTORY_NEPTUNE_ENABLED": "true",
-        "GITHUB_REPOSITORY": "elgansayer/Neptune-Bomberman",
+        "GITHUB_REPOSITORY": "elgansayer/Neptune",
         "GITHUB_TOKEN": "unit-test-token",
         "FACTORY_REPOSITORY": str(repository),
         "FACTORY_STATE_DIR": str(root / "state"),

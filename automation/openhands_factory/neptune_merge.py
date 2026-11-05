@@ -12,7 +12,7 @@ from typing import Any
 
 from openhands_factory.exceptions import FactoryError
 
-NEPTUNE_REPOSITORY = "elgansayer/Neptune-Bomberman"
+NEPTUNE_REPOSITORY = "elgansayer/Neptune"
 NEPTUNE_GATE = "Neptune merge gate"
 PROVISIONING_GATE = "Pinned Godot and Saturn installation"
 GITHUB_ACTIONS_APP = 15368

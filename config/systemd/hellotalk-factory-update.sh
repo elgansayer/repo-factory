@@ -503,7 +503,7 @@ try:
     required = {
         "FACTORY_NEPTUNE_ENABLED": "true",
         "FACTORY_REPOSITORY_PROFILE": "neptune",
-        "GITHUB_REPOSITORY": "elgansayer/Neptune-Bomberman",
+        "GITHUB_REPOSITORY": "elgansayer/Neptune",
         "FACTORY_PROVIDER_CAPACITY_DIR": "/var/lib/repo-factory/shared",
         "FACTORY_AGENTS_CONFIG": "/etc/repo-factory/agents.json",
         "FACTORY_MAX_PARALLEL_JOBS": "1",

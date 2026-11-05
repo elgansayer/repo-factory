@@ -172,7 +172,7 @@ def _neptune_main_gate(
             ProcessResult(0, encoded, ""),
         ]
     )
-    return MainBranchMergeGate("elgansayer/Neptune-Bomberman", tmp_path, "secret", runner), runner
+    return MainBranchMergeGate("elgansayer/Neptune", tmp_path, "secret", runner), runner
 
 
 def test_neptune_main_uses_actual_workflow_and_literal_app_pinned_gate(tmp_path: Path) -> None:
