@@ -7,6 +7,11 @@ contract. Do not access secrets, other projects, private media or host paths.
 Never push, merge, change GitHub state, alter protection, acquire host root or
 use a container-control socket. The coordinator owns publication and merging.
 
+The owner's binding goal is the full original Saturn source and assets; read
+`docs/restart/FULL_SOURCE_AND_ASSETS.md` and issue #865 before choosing work.
+Decompiled source and extracted assets belong only in the private decomp
+repository named there, never in this public repository.
+
 Keep the authoritative Godot simulation, native/browser portability and data-only
 public pack interfaces. Multiplayer, fair bounded game bots and community content
 are central. Separate Saturn/Power observations from original Neptune features.
