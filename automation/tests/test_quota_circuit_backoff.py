@@ -227,3 +227,24 @@ def test_quota_backoff_survives_health_store_restart(tmp_path) -> None:
     assert loaded.consecutive_failures == 3
     assert loaded.last_failure_kind is AgentFailureKind.PROVIDER_QUOTA
     assert loaded.effective_cooldown_seconds() == 14_400
+
+
+def test_repeated_timeout_failures_back_off_exponentially_to_six_hours() -> None:
+    start = datetime(2026, 11, 6, 12, 0, tzinfo=UTC)
+    breaker = AgentCircuitBreaker("hanging-provider", failure_threshold=1, cooldown_seconds=300)
+
+    expected = [300, 600, 1200, 2400, 4800, 9600, 19200, 21600, 21600]
+    probe = start
+    for cooldown in expected:
+        assert breaker.permits_call(probe)
+        breaker.record_failure(AgentFailureKind.PROVIDER_TIMEOUT, probe)
+        assert breaker.effective_cooldown_seconds() == cooldown
+        assert breaker.get_health().retry_after == probe + timedelta(seconds=cooldown)
+        probe += timedelta(seconds=cooldown)
+
+    breaker.consecutive_failures = 10**100
+    assert breaker.effective_cooldown_seconds() == 21600
+
+    breaker.record_success()
+    breaker.record_failure(AgentFailureKind.PROVIDER_TIMEOUT, probe)
+    assert breaker.effective_cooldown_seconds() == 300
