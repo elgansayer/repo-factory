@@ -137,10 +137,20 @@ class ConservativeAgentRouter(AgentRouter):
         self,
         *args: Any,
         enabled: bool | None = None,
+        max_provider_candidates: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.conservative_enabled = conservative_policy_enabled() if enabled is None else enabled
+        if max_provider_candidates is not None:
+            self.max_provider_candidates = max_provider_candidates
+        elif (
+            "deepseek" in self.providers or os.environ.get("FACTORY_ROUTING_MODE") == "experimental"
+        ):
+            # Experimental chain: OpenAI Pro, Claude Max, Antigravity, OpenCode Go, DeepSeek.
+            self.max_provider_candidates = 5
+        else:
+            self.max_provider_candidates = MAX_PROVIDER_CANDIDATES_PER_PHASE
         self._global_agent_slots = BoundedSemaphore(
             _positive_int_environment(
                 "FACTORY_HOST_AGENT_CONCURRENCY", MAX_GLOBAL_AGENT_CONCURRENCY
@@ -204,7 +214,11 @@ class ConservativeAgentRouter(AgentRouter):
         job: Job,
     ) -> tuple[list[str], dict[str, ProviderHealth]]:
         candidates, health = super()._candidate_names(phase, job)
-        if not self.conservative_enabled:
+        if (
+            not self.conservative_enabled
+            or getattr(getattr(self.policy, "config", None), "routing_mode", "legacy")
+            == "experimental"
+        ):
             return candidates, health
 
         # Static policy is the safe starting order, but a 24/7 service must learn
@@ -266,7 +280,7 @@ class ConservativeAgentRouter(AgentRouter):
                 name for name in candidates if name in mutating_providers
             ]
 
-        return candidates[:MAX_PROVIDER_CANDIDATES_PER_PHASE], health
+        return candidates[: self.max_provider_candidates], health
 
     @staticmethod
     def _review_key(job: Job) -> str:

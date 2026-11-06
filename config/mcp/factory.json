@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "factory_codemode": {
+      "command": "/opt/hellotalk-factory/venv/bin/python",
+      "args": ["/opt/hellotalk-factory/venv/share/factory-mcp/codemode_mcp.py"]
+    }
+  }
+}

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Concise Compiler & Test Output Wrapper (Phase 4.6)
+# Runs a build/test command (`cmake`, `make`, `go test`, `godot`, etc.) and filters verbose build logs
+# through `grep -E -n -C 2 -i` to emit ONLY failed assertions and compiler error lines with 2 lines of context.
+
+set -uo pipefail
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: concise-build <command> [args...]" >&2
+    exit 2
+fi
+
+TMP_LOG="$(mktemp /tmp/concise-build.XXXXXX.log)"
+trap 'rm -f "$TMP_LOG"' EXIT
+
+"$@" >"$TMP_LOG" 2>&1
+EXIT_CODE=$?
+
+# Always preserve Neptune verification receipts if present
+grep -E "^NEPTUNE_FACTORY_VERIFICATION=" "$TMP_LOG" 2>/dev/null || true
+
+ERROR_REGEX='(error:|error\[|fatal:|fatal error:|failed|--- fail|fail[[:space:]]|panic:|assertion|assert|undefined reference|collect2:|exception|traceback|syntaxerror|SCRIPT ERROR|PARSE ERROR)'
+
+if [[ $EXIT_CODE -eq 0 ]]; then
+    echo "[concise-build] PASS (exit 0): $*"
+    exit 0
+fi
+
+echo "[concise-build] FAILED (exit ${EXIT_CODE}): $*"
+# RTK pass: dedupe repeated lines, strip progress bars, keep unique root failures.
+if command -v rtk >/dev/null 2>&1 && [[ "${FACTORY_DISABLE_RTK:-0}" != "1" ]]; then
+    RTK_OUT="$(rtk log "$TMP_LOG" 2>/dev/null | grep -v -E '^\[rtk\]' | head -n 30 || true)"
+    [[ -n "$RTK_OUT" ]] && printf '%s\n' "$RTK_OUT"
+fi
+MATCHES="$(sed -E 's/\r/\n/g' "$TMP_LOG" | grep -v -E '[0-9]+%|#{4,}' | grep -E -n -C 2 -i "$ERROR_REGEX" 2>/dev/null | awk '!seen[substr($0, index($0,$2))]++' | tail -n 40 || true)"
+if [[ -n "$MATCHES" ]]; then
+    printf '%s\n' "$MATCHES"
+else
+    tail -n 25 "$TMP_LOG"
+fi
+
+exit "$EXIT_CODE"

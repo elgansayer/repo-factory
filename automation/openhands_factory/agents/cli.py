@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import tempfile
@@ -56,6 +57,17 @@ _QUOTA_MARKERS = (
     "you have hit your weekly limit",
     "you've hit your usage limit",
     "you have hit your usage limit",
+    "you've hit your 5-hour limit",
+    "you have hit your 5-hour limit",
+    "5-hour rolling window",
+    "5 hour rolling window",
+    "five-hour rolling window",
+    "rolling window quota",
+    "rolling window limit",
+    "weekly quota",
+    "weekly limit",
+    "weekly allowance",
+    "weekly usage limit",
     "quota exhausted",
     "quota exceeded",
     "individual quota reached",
@@ -66,7 +78,7 @@ _QUOTA_MARKERS = (
     "monthly spend limit",
 )
 # "You've hit your session/weekly/usage/5-hour limit": one family across CLIs.
-_HIT_LIMIT = re.compile(r"you(?:'ve| have) hit your [a-z0-9 -]{0,24}limit")
+_HIT_LIMIT = re.compile(r"you(?:'ve| have) hit your [a-z0-9 -]{0,32}(?:limit|quota|window)")
 _RATE_LIMIT_MARKERS = (
     "selected model is at capacity",
     "rate limit",
@@ -146,6 +158,26 @@ def _absolute_retry_after(value: str, now: datetime) -> int | None:
     return max(0, min(int((moment - now).total_seconds()), 7 * 24 * 3600))
 
 
+def _session_retry_after(value: str, now: datetime) -> int | None:
+    """Use an explicit UTC clock only for daily/session windows, never weekly limits."""
+    if not re.search(r"(?i)(?:5[- ]hour|five-hour|session) limit", value):
+        return None
+    match = re.search(r"(?i)resets\s+(\d{1,2})(?::(\d{2}))?\s*([ap]m)\s*\(UTC\)", value)
+    if not match:
+        return None
+    hour, minute = int(match[1]), int(match[2] or 0)
+    if not 1 <= hour <= 12 or not 0 <= minute < 60:
+        return None
+    hour = hour % 12 + (12 if match[3].lower() == "pm" else 0)
+    now = now.astimezone(UTC)
+    reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if reset < now:
+        if now - reset < timedelta(minutes=1):
+            return 0
+        reset += timedelta(days=1)
+    return math.ceil((reset - now).total_seconds())
+
+
 def extract_retry_after_seconds(value: str, now: datetime | None = None) -> int | None:
     patterns = (
         r"(?i)retry[-_ ]after(?: seconds)?[\s:=]+(\d+)",
@@ -166,7 +198,16 @@ def extract_retry_after_seconds(value: str, now: datetime | None = None) -> int 
     if duration and any(part is not None for part in duration.groups()):
         hours, minutes, seconds = (int(part or 0) for part in duration.groups())
         return min(hours * 3600 + minutes * 60 + seconds, 7 * 24 * 3600)
-    return _absolute_retry_after(value, now or datetime.now(UTC))
+    current = now or datetime.now(UTC)
+    for retry in (_absolute_retry_after(value, current), _session_retry_after(value, current)):
+        if retry is not None:
+            return retry
+    lowered_val = value.lower()
+    if "5-hour" in lowered_val or "5 hour" in lowered_val or "five-hour" in lowered_val:
+        return 5 * 3600
+    if "weekly quota" in lowered_val or "weekly limit" in lowered_val:
+        return 24 * 3600
+    return None
 
 
 def classify_process_failure(result: ProcessResult) -> AgentFailure:

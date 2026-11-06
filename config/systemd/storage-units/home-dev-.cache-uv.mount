@@ -1,0 +1,13 @@
+[Unit]
+Description=Factory UV cache on data volume
+RequiresMountsFor=/mnt/HC_Volume_106574422 /home/dev/.cache
+Before=repo-factory@neptune.service repo-factory@hellotalk.service repo-factory@workout-agent.service
+
+[Mount]
+What=/mnt/HC_Volume_106574422/repo-factory/shared-tools/uv-cache
+Where=/home/dev/.cache/uv
+Type=none
+Options=bind
+
+[Install]
+WantedBy=local-fs.target

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Slim Serena LSP MCP server (symbolic tools only). Usage: serena-slim [project_path]
+PROJECT="${1:-$PWD}"
+exec /home/dev/.local/bin/uvx --from git+https://github.com/oraios/serena serena start-mcp-server \
+  --context /home/dev/factory-tools/serena/factory-slim.context.yml \
+  --project "$PROJECT" --enable-web-dashboard false --open-web-dashboard false --agent-interface tools --log-level ERROR

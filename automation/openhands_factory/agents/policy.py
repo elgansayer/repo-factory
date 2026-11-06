@@ -32,6 +32,9 @@ class ConfigRoutingPolicy(RoutingPolicy):
             health = provider_health.get(name)
             if provider is None or not provider.enabled or health is None:
                 continue
+            if not provider.is_active():
+                # Expired/not-yet-started subscription window (e.g. promo allowance).
+                continue
             if health.status not in {ProviderStatus.HEALTHY, ProviderStatus.DEGRADED}:
                 continue
             target = emergency if provider.emergency_only else eligible
@@ -47,7 +50,10 @@ class ConfigRoutingPolicy(RoutingPolicy):
         if phase is AgentPhase.GENERAL_ACTION and job.task.source == "factory-internal":
             return eligible[:1]
 
-        if phase in {AgentPhase.QUALITY_REPAIR, AgentPhase.CI_REPAIR}:
+        if self.config.routing_mode != "experimental" and phase in {
+            AgentPhase.QUALITY_REPAIR,
+            AgentPhase.CI_REPAIR,
+        }:
             used = {
                 str(entry.get("provider"))
                 for entry in job.provider_history

@@ -1,0 +1,55 @@
+# LiteLLM Proxy Configuration - LEGACY MODE (FACTORY_ROUTING_MODE=legacy)
+# Preserves original provider routing (Google Flash -> Claude -> Codex -> Pi -> OpenCode MiniMax-M3)
+
+model_list:
+  - model_name: default
+    litellm_params:
+      model: agy/gemini-3.8-flash-high
+      timeout: 60
+
+  - model_name: agy/gemini-3.8-flash-high
+    litellm_params:
+      model: agy/gemini-3.8-flash-high
+      timeout: 60
+
+  - model_name: opencode-go/minimax-m3
+    litellm_params:
+      model: opencode-go/minimax-m3
+      timeout: 60
+
+  - model_name: gpt-5.6-sol
+    litellm_params:
+      model: openai/gpt-4o
+      api_base: os.environ/OPENAI_API_BASE
+      api_key: os.environ/OPENAI_API_KEY
+      timeout: 90
+
+router_settings:
+  routing_strategy: simple-shuffle
+  allowed_fails: 1
+  cooldown_time: 300
+  num_retries: 1
+  timeout: 60
+  fallbacks:
+    - default:
+        - opencode-go/minimax-m3
+        - gpt-5.6-sol
+
+litellm_settings:
+  drop_params: true
+  modify_params: true
+  callbacks:
+    - litellm_callbacks.token_efficiency_callback
+  custom_provider_map:
+    - provider: agy
+      custom_handler: litellm_callbacks.agy_handler
+    - provider: opencode-go
+      custom_handler: litellm_callbacks.opencode_go_handler
+  cache_control_injection_points:
+    - location: message
+      role: system
+    - location: message
+      index: 0
+
+general_settings:
+  instance_name: repo-factory-litellm-legacy

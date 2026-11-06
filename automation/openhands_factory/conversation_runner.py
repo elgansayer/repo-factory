@@ -507,14 +507,37 @@ class SdkConversationFactory:
         from openhands_factory.provider_profiles import build_llm
         from openhands_factory.secure_tools import SecureFileEditorTool, SecureTerminalTool
 
-        agent = Agent(
-            llm=build_llm(self.config, provider, role=role),
-            tools=[Tool(name=SecureTerminalTool.name), Tool(name=SecureFileEditorTool.name)],
-            system_prompt=build_system_prompt(
+        llm = build_llm(self.config, provider, role=role)
+        agent_kwargs: dict[str, object] = {
+            "llm": llm,
+            "mcp_config": {
+                "mcpServers": {
+                    "factory_codemode": {
+                        "command": "/opt/hellotalk-factory/venv/bin/python",
+                        "args": ["/opt/hellotalk-factory/venv/share/factory-mcp/codemode_mcp.py"],
+                        "env": {"FACTORY_WORKSPACE": str(workspace)},
+                    }
+                }
+            },
+            "tools": [Tool(name=SecureTerminalTool.name), Tool(name=SecureFileEditorTool.name)],
+            "system_prompt": build_system_prompt(
                 self.config.prompt_dir,
                 system_prompt_path=self.config.system_prompt_path,
             ),
-        )
+        }
+        try:
+            from openhands.sdk.context.condenser import LLMSummarizingCondenser
+
+            # Summarise and prune conversation history every 10 turns (20 events),
+            # keeping the initial architectural goal (keep_first=2) and recent state.
+            agent_kwargs["condenser"] = LLMSummarizingCondenser(
+                llm=llm,
+                max_size=20,
+                keep_first=2,
+            )
+        except Exception:
+            pass
+        agent = Agent(**agent_kwargs)  # type: ignore[arg-type]
         return Conversation(  # type: ignore[return-value]
             agent=agent,
             workspace=str(workspace),

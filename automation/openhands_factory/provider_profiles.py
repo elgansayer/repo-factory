@@ -242,6 +242,14 @@ def build_llm(
 
     from openhands_factory.provider_runtime import provider_model
 
+    if config.routing_mode == "experimental":
+        return LLM(
+            model="openai/tier0a-openai",
+            api_key="factory-local-proxy",
+            base_url="http://127.0.0.1:4000/v1",
+            usage_id="factory-experimental",
+        )
+
     selected_provider = provider or select_primary_provider(config)
     if selected_provider is ProviderName.OPENAI_SUBSCRIPTION:
         return LLM.subscription_login(

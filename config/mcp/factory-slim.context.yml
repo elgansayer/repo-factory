@@ -1,0 +1,29 @@
+description: Factory slim context. Symbolic navigation/edit tools only (about 10 tools); file IO, shell, memory and onboarding excluded to minimise tool-schema tokens.
+prompt: |
+  Use symbolic tools only. Never read whole files. Prefer replace_symbol_body and find_referencing_symbols over line diffs.
+excluded_tools:
+  - create_text_file
+  - read_file
+  - execute_shell_command
+  - find_file
+  - list_dir
+  - onboarding
+  - initial_instructions
+  - check_onboarding_performed
+  - write_memory
+  - read_memory
+  - list_memories
+  - delete_memory
+  - edit_memory
+  - rename_memory
+  - get_current_config
+  - activate_project
+  - replace_content
+  - replace_in_files
+  - safe_delete_symbol
+  - search_for_pattern
+  - find_declaration
+  - find_implementations
+  - get_diagnostics_for_file
+tool_description_overrides: {}
+single_project: true

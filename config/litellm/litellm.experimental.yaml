@@ -1,0 +1,242 @@
+# LiteLLM Proxy Configuration - EXPERIMENTAL MODE (FACTORY_ROUTING_MODE=experimental)
+# Tier 0A: OpenAI Pro (codex CLI subscription) until 2026-11-16, quota-> failover
+# Tier 0B: Claude Max (claude CLI subscription) until 2026-12-01, when 0A exhausted/expired
+# Tier 1: Google Antigravity (agy) / Gemini Pro (with 5h rolling window & weekly quota failover)
+# Tier 2: OpenCode Go Plus (DeepSeek V3 / V4.1 Flash / V4 Pro & Qwen 3.8 coding models)
+# Tier 3: Official DeepSeek API (deepseek_chat & deepseek_reasoner overflow fallback)
+
+model_list:
+  # =========================================================================
+  # TIER 0A: OpenAI Pro (expiring 2026-11-16). Handler self-disables after expiry or on quota.
+  # =========================================================================
+  - model_name: tier0a-openai
+    litellm_params:
+      model: codex-cli/gpt-5.6-sol
+      timeout: 600
+      max_retries: 0
+
+  # =========================================================================
+  # TIER 0B: Claude Max (expiring 2026-12-01). Architecture / reverse engineering.
+  # =========================================================================
+  - model_name: tier0b-claude
+    litellm_params:
+      model: claude-cli/opus
+      timeout: 600
+      max_retries: 0
+
+  # =========================================================================
+  # TIER 1: Interactive / Complex Architectural Steering (Antigravity / Gemini Pro)
+  # =========================================================================
+  - model_name: tier1-architect
+    litellm_params:
+      model: agy/gemini-4-argon-high
+      timeout: 45
+      max_retries: 0
+
+  - model_name: agy/gemini-pro
+    litellm_params:
+      model: agy/gemini-4-argon-high
+      timeout: 45
+      max_retries: 0
+
+  - model_name: agy/gemini-4-argon-high
+    litellm_params:
+      model: agy/gemini-4-argon-high
+      timeout: 45
+      max_retries: 0
+
+  - model_name: agy/gemini-3.8-flash-high
+    litellm_params:
+      model: agy/gemini-3.8-flash-high
+      timeout: 45
+      max_retries: 0
+
+  # =========================================================================
+  # TIER 2: Primary 24/7 Autonomous Worker (OpenCode Go Plus Subscription)
+  # Prioritising DeepSeek V3 / V4.1 Flash and Qwen coding models
+  # =========================================================================
+  - model_name: tier2-worker
+    litellm_params:
+      model: opencode-go/deepseek-v4.1-flash
+      timeout: 60
+      max_retries: 0
+      order: 1
+
+  - model_name: tier2-worker
+    litellm_params:
+      model: opencode-go/qwen3.8-max
+      timeout: 60
+      max_retries: 0
+      order: 2
+
+  - model_name: tier2-worker
+    litellm_params:
+      model: opencode-go/qwen3.8-flash
+      timeout: 60
+      max_retries: 0
+      order: 3
+
+  - model_name: opencode-go/deepseek-v3
+    litellm_params:
+      model: opencode-go/deepseek-v4.1-flash
+      timeout: 60
+      max_retries: 0
+
+  - model_name: opencode-go/deepseek-v4.1-flash
+    litellm_params:
+      model: opencode-go/deepseek-v4.1-flash
+      timeout: 60
+      max_retries: 0
+
+  - model_name: opencode-go/deepseek-v4-pro
+    litellm_params:
+      model: opencode-go/deepseek-v4-pro
+      timeout: 90
+      max_retries: 0
+
+  - model_name: opencode-go/qwen3.8-max
+    litellm_params:
+      model: opencode-go/qwen3.8-max
+      timeout: 60
+      max_retries: 0
+
+  - model_name: opencode-go/qwen3.8-flash
+    litellm_params:
+      model: opencode-go/qwen3.8-flash
+      timeout: 60
+      max_retries: 0
+
+  - model_name: opencode-go/qwen3.7-plus
+    litellm_params:
+      model: opencode-go/qwen3.7-plus
+      timeout: 60
+      max_retries: 0
+
+  # =========================================================================
+  # TIER 3: Unattended Overflow Fallback (Official DeepSeek API)
+  # =========================================================================
+  - model_name: tier3-fallback
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      timeout: 90
+
+  - model_name: deepseek_chat
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      timeout: 90
+
+  - model_name: deepseek_reasoner
+    litellm_params:
+      model: deepseek/deepseek-reasoner
+      api_key: os.environ/DEEPSEEK_API_KEY
+      timeout: 120
+
+router_settings:
+  routing_strategy: simple-shuffle
+  enable_pre_call_checks: true
+  allowed_fails: 1
+  cooldown_time: 300
+  num_retries: 0   # fail over immediately; never retry an exhausted subscription
+  timeout: 60
+  fallbacks:
+    # Strict chain: 0A -> 0B -> 1 -> 2 -> 3 (each entry lists the remaining tiers in order)
+    - tier0a-openai: ["tier0b-claude", "tier1-architect", "tier2-worker", "deepseek_chat", "deepseek_reasoner"]
+    - tier0b-claude: ["tier1-architect", "tier2-worker", "deepseek_chat", "deepseek_reasoner"]
+    # Tier 1 -> Tier 2 -> Tier 3 automated failover
+    - tier1-architect:
+        - tier2-worker
+        - deepseek_reasoner
+        - deepseek_chat
+    - agy/gemini-pro:
+        - opencode-go/deepseek-v4.1-flash
+        - opencode-go/qwen3.8-max
+        - deepseek_reasoner
+        - deepseek_chat
+    - agy/gemini-4-argon-high:
+        - opencode-go/deepseek-v4.1-flash
+        - opencode-go/qwen3.8-max
+        - deepseek_reasoner
+        - deepseek_chat
+    - agy/gemini-3.8-flash-high:
+        - opencode-go/deepseek-v4.1-flash
+        - opencode-go/qwen3.8-flash
+        - deepseek_chat
+    # Tier 2 -> Tier 3 automated failover on HTTP 429 quota or timeout
+    - tier2-worker:
+        - deepseek_chat
+        - deepseek_reasoner
+    - opencode-go/deepseek-v3:
+        - opencode-go/qwen3.8-flash
+        - deepseek_chat
+        - deepseek_reasoner
+    - opencode-go/deepseek-v4.1-flash:
+        - opencode-go/qwen3.8-flash
+        - deepseek_chat
+        - deepseek_reasoner
+    - opencode-go/deepseek-v4-pro:
+        - opencode-go/qwen3.8-max
+        - deepseek_reasoner
+        - deepseek_chat
+    - opencode-go/qwen3.8-max:
+        - deepseek_chat
+        - deepseek_reasoner
+    - opencode-go/qwen3.8-flash:
+        - deepseek_chat
+        - deepseek_reasoner
+    - opencode-go/qwen3.7-plus:
+        - deepseek_chat
+        - deepseek_reasoner
+    # Tier 3 cross-model fallback
+    - deepseek_chat:
+        - deepseek_reasoner
+    - deepseek_reasoner:
+        - deepseek_chat
+  context_window_fallbacks:
+    - tier0a-openai:
+        - tier0b-claude
+        - tier1-architect
+    - tier1-architect:
+        - tier2-worker
+        - deepseek_chat
+    - tier2-worker:
+        - deepseek_chat
+
+litellm_settings:
+  # Exact-match Redis cache, strictly opt-in per request (mode default_off).
+  # Callers set cache={"use-cache": true} on deterministic sub-agent checks, AST summaries and
+  # embeddings. Multi-turn agent traffic never opts in, so tool-call loops cannot replay stale
+  # answers. Semantic caching (redis-semantic) is intentionally NOT configured.
+  cache: true
+  cache_params:
+    type: redis
+    host: 127.0.0.1
+    port: 6379
+    mode: default_off
+    ttl: 86400
+    namespace: factory-exact
+    supported_call_types: ["acompletion", "completion", "aembedding", "embedding"]
+  drop_params: true
+  modify_params: true
+  num_retries: 0
+  request_timeout: 60
+  callbacks:
+    - litellm_callbacks.token_efficiency_callback
+  custom_provider_map:
+    - provider: agy
+      custom_handler: litellm_callbacks.agy_handler
+    - provider: opencode-go
+      custom_handler: litellm_callbacks.opencode_go_handler
+    - provider: codex-cli
+      custom_handler: litellm_callbacks.codex_handler
+    - provider: claude-cli
+      custom_handler: litellm_callbacks.claude_handler
+  cache_control_injection_points:
+    - location: message
+      role: system
+    - location: message
+      index: 0
+
+general_settings:
+  instance_name: repo-factory-litellm-experimental

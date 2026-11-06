@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, cast
 
@@ -37,6 +38,19 @@ class ProviderConfig(BaseModel):
     extra_args: list[str] = Field(default_factory=list)
     credential_paths: list[str] = Field(default_factory=list)
     runtime_paths: list[str] = Field(default_factory=list)
+    # Optional time box for expiring subscription allowances (UTC). Outside the
+    # window the provider is skipped by routing without editing `enabled`.
+    active_from: datetime | None = None
+    active_until: datetime | None = None
+
+    def is_active(self, now: datetime | None = None) -> bool:
+        current = now or datetime.now(UTC)
+        for bound in (self.active_from, self.active_until):
+            if bound is not None and bound.tzinfo is None:
+                raise ValueError("provider time box must include a timezone")
+        if self.active_from is not None and current < self.active_from:
+            return False
+        return not (self.active_until is not None and current >= self.active_until)
 
     @model_validator(mode="after")
     def validate_provider(self) -> ProviderConfig:
@@ -46,7 +60,7 @@ class ProviderConfig(BaseModel):
             raise ValueError("provider timeout_seconds must be positive")
         if self.max_output_bytes <= 0 or self.max_turns <= 0:
             raise ValueError("provider output and turn limits must be positive")
-        if self.transport not in {"cli", "openhands-sdk"}:
+        if self.transport not in {"cli", "openhands-sdk", "deepseek-api"}:
             raise ValueError(f"Unsupported provider transport: {self.transport}")
         if self.auth_mode not in {None, "subscription", "api"}:
             raise ValueError(f"Unsupported provider auth_mode: {self.auth_mode}")
@@ -88,6 +102,13 @@ class ProviderConfig(BaseModel):
                 if path.is_relative_to(other) or other.is_relative_to(path):
                     raise ValueError("provider home mounts must not overlap")
         return self
+
+    def model_for_phase(self, phase: str) -> str | None:
+        return (
+            self.phase_models.get(phase)
+            or self.phase_models.get(phase.replace("-", "_"))
+            or self.model
+        )
 
 
 class AgentTimeoutsConfig(BaseModel):
@@ -182,6 +203,7 @@ class AgentsConfig(BaseModel):
 
     repository_scope: str | None = None
     routing_enabled: bool = True
+    routing_mode: Literal["legacy", "experimental"] = "legacy"
     providers: dict[str, ProviderConfig] = Field(
         default_factory=lambda: {
             "claude": ProviderConfig(
@@ -311,12 +333,14 @@ class AgentsConfig(BaseModel):
                     if migrating_fable and migrated_phase_models.get("code_review") == "haiku":
                         migrated_phase_models["code_review"] = "sonnet"
                     normalised_provider["phase_models"] = migrated_phase_models
-            normalised_provider.setdefault(
-                "transport", "openhands-sdk" if name == "openhands" else "cli"
+            default_transport = (
+                "openhands-sdk"
+                if name == "openhands"
+                else ("deepseek-api" if name == "deepseek" else "cli")
             )
-            normalised_provider.setdefault(
-                "auth_mode", "api" if name == "openhands" else "subscription"
-            )
+            default_auth_mode = "api" if name in {"openhands", "deepseek"} else "subscription"
+            normalised_provider.setdefault("transport", default_transport)
+            normalised_provider.setdefault("auth_mode", default_auth_mode)
             defaults = {
                 "claude": {
                     "credential_paths": [".claude", ".claude.json"],
@@ -367,24 +391,99 @@ class AgentsConfig(BaseModel):
         )
         return config
 
+    @classmethod
+    def experimental_default(cls) -> AgentsConfig:
+        import json
+
+        for candidate in (
+            Path(
+                "/mnt/HC_Volume_106574422/repo-factory/control/config/factory/agents.experimental.json"
+            ),
+            Path("/home/dev/factory-ops/agents.experimental.json"),
+        ):
+            if candidate.is_file():
+                return cls(**json.loads(candidate.read_text(encoding="utf-8")))
+        return cls(
+            routing_enabled=True,
+            routing_mode="experimental",
+            providers={
+                "google": ProviderConfig(
+                    enabled=True,
+                    command="agy",
+                    cli_variant="antigravity",
+                    auth_mode="subscription",
+                    transport="cli",
+                    max_concurrency=2,
+                    model="gemini-4-argon-high",
+                    credential_paths=[".gemini"],
+                    runtime_paths=[".local/bin", ".npm-global", "factory-tools"],
+                ),
+                "opencode": ProviderConfig(
+                    enabled=True,
+                    command="opencode",
+                    auth_mode="subscription",
+                    transport="cli",
+                    max_concurrency=4,
+                    model="opencode-go/deepseek-v4.1-flash",
+                    credential_paths=[".config/opencode", ".local/share/opencode"],
+                    runtime_paths=[".local/bin", ".npm-global", ".opencode", "factory-tools"],
+                ),
+                "deepseek": ProviderConfig(
+                    enabled=True,
+                    command="deepseek-agent",
+                    auth_mode="api",
+                    transport="deepseek-api",
+                    max_concurrency=4,
+                    model="deepseek_chat",
+                    runtime_paths=[".local/bin", "factory-tools"],
+                ),
+            },
+            routing=AgentsRoutingConfig(
+                planning=["google", "opencode", "deepseek"],
+                architecture=["google", "opencode", "deepseek"],
+                implementation=["google", "opencode", "deepseek"],
+                security_review=["google", "opencode", "deepseek"],
+                quality_repair=["google", "opencode", "deepseek"],
+                code_review=["google", "opencode", "deepseek"],
+                ci_repair=["google", "opencode", "deepseek"],
+                general_action=["google", "opencode", "deepseek"],
+                skip_busy_providers=True,
+                same_provider_retries=0,
+            ),
+        )
+
     @model_validator(mode="after")
     def validate_provider_names(self) -> AgentsConfig:
-        supported = {"claude", "codex", "google", "opencode", "openhands", "pi"}
+        base_supported = {"claude", "codex", "google", "opencode", "openhands", "pi"}
+        supported = base_supported | {"deepseek"}
         declared_unknown = sorted(set(self.providers) - supported)
         if declared_unknown:
             raise ValueError(f"Unknown agent provider(s): {', '.join(declared_unknown)}")
-        for name in supported - set(self.providers):
+        for name in base_supported - set(self.providers):
             self.providers[name] = ProviderConfig(enabled=False)
+        if self.routing_mode == "experimental" and "deepseek" not in self.providers:
+            self.providers["deepseek"] = ProviderConfig(
+                enabled=False, auth_mode="api", transport="deepseek-api"
+            )
         for name, provider in self.providers.items():
             if provider.cli_variant is not None and name != "google":
                 raise ValueError("cli_variant is supported only by the google provider")
-            expected_transport = "openhands-sdk" if name == "openhands" else "cli"
-            if provider.enabled and provider.transport != expected_transport:
+            expected_transport = (
+                "openhands-sdk"
+                if name == "openhands"
+                else ("deepseek-api" if name == "deepseek" else "cli")
+            )
+            supervised_api_cli = name == "deepseek" and provider.transport == "cli"
+            if (
+                provider.enabled
+                and provider.transport != expected_transport
+                and not supervised_api_cli
+            ):
                 raise ValueError(
                     f"Provider {name!r} requires transport {expected_transport!r}, "
                     f"not {provider.transport!r}"
                 )
-            expected_auth_mode = "api" if name == "openhands" else "subscription"
+            expected_auth_mode = "api" if name in {"openhands", "deepseek"} else "subscription"
             if provider.enabled and provider.auth_mode != expected_auth_mode:
                 raise ValueError(
                     f"Provider {name!r} requires auth_mode {expected_auth_mode!r}, "
@@ -414,6 +513,7 @@ class AgentsConfig(BaseModel):
 
 class FactoryConfig(BaseModel):
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
+    routing_mode: Literal["legacy", "experimental"] = "legacy"
     repository: Path = Path("/var/lib/hellotalk-factory/repository")
     base_branch: str = "main"
     state_dir: Path = Path("/var/lib/hellotalk-factory")
@@ -708,8 +808,9 @@ class FactoryConfig(BaseModel):
             )
         if any(
             provider.enabled
+            and not (name == "deepseek" and self.routing_mode == "experimental")
             and (provider.transport != "cli" or provider.auth_mode != "subscription")
-            for provider in self.agents.providers.values()
+            for name, provider in self.agents.providers.items()
         ):
             raise ValueError("Neptune bootstrap permits configured subscription CLIs only")
         private_roots = (
@@ -783,13 +884,34 @@ class FactoryConfig(BaseModel):
 
         import json
 
+        raw_routing_mode = env.get("FACTORY_ROUTING_MODE", "").strip().lower()
+        if not raw_routing_mode and environment is None:
+            mode_file = Path("/var/lib/repo-factory/shared/routing-mode")
+            if mode_file.is_file():
+                try:
+                    raw_routing_mode = mode_file.read_text(encoding="utf-8").strip().lower()
+                except OSError:
+                    raw_routing_mode = ""
+        if raw_routing_mode not in {"", "legacy", "experimental"}:
+            raise ConfigurationError(
+                f"Invalid FACTORY_ROUTING_MODE {raw_routing_mode!r}; "
+                "expected 'experimental' or 'legacy'"
+            )
+        routing_mode: Literal["legacy", "experimental"] = (
+            "experimental" if raw_routing_mode == "experimental" else "legacy"
+        )
+
         agents_config = AgentsConfig.legacy_openhands_only()
         if boolean("GEMINI_ENABLED", False):
             raise ConfigurationError(
                 "GEMINI_ENABLED is retired; configure a subscription agent provider instead"
             )
         agents_config_path = env.get("FACTORY_AGENTS_CONFIG")
-        if agents_config_path:
+        if routing_mode == "experimental" and (
+            not agents_config_path or agents_config_path == "/etc/repo-factory/agents.json"
+        ):
+            agents_config = AgentsConfig.experimental_default()
+        elif agents_config_path:
             try:
                 with open(agents_config_path) as f:
                     agents_data = json.load(f)
@@ -815,6 +937,7 @@ class FactoryConfig(BaseModel):
         try:
             return cls(
                 agents=agents_config,
+                routing_mode=routing_mode,
                 repository=repository,
                 base_branch=env.get("FACTORY_BASE_BRANCH", "main"),
                 state_dir=state_dir,

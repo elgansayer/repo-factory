@@ -57,6 +57,21 @@ class ContainedFileEditorExecutor(ToolExecutor[FileEditorAction, FileEditorObser
                 command=action.command,
                 is_error=True,
             )
+        if action.command == "view" and resolved.is_file():
+            requested = getattr(action, "view_range", None)
+            with resolved.open(errors="replace") as handle:
+                large = sum(1 for _ in handle) > 150
+            if large and (
+                not requested or requested[-1] == -1 or requested[-1] - requested[0] >= 150
+            ):
+                return FileEditorObservation.from_text(
+                    text=(
+                        "Use treesitter signatures first, then an explicit range "
+                        "of at most 150 lines."
+                    ),
+                    command=action.command,
+                    is_error=True,
+                )
         confined_action = action.model_copy(update={"path": str(resolved)})
         return self.delegate(confined_action, conversation)
 

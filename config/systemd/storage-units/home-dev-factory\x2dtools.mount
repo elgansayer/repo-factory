@@ -1,0 +1,13 @@
+[Unit]
+Description=Factory data volume: factory-tools
+RequiresMountsFor=/mnt/HC_Volume_106574422
+Before=repo-factory@neptune.service repo-factory@hellotalk.service repo-factory@workout-agent.service
+
+[Mount]
+What=/mnt/HC_Volume_106574422/repo-factory/host-data/factory-tools
+Where=/home/dev/factory-tools
+Type=none
+Options=bind
+
+[Install]
+WantedBy=local-fs.target

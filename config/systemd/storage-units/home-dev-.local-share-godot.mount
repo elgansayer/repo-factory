@@ -1,0 +1,13 @@
+[Unit]
+Description=Factory data volume: godot-tools
+RequiresMountsFor=/mnt/HC_Volume_106574422
+Before=repo-factory@neptune.service repo-factory@hellotalk.service repo-factory@workout-agent.service
+
+[Mount]
+What=/mnt/HC_Volume_106574422/repo-factory/host-data/godot-tools
+Where=/home/dev/.local/share/godot
+Type=none
+Options=bind
+
+[Install]
+WantedBy=local-fs.target

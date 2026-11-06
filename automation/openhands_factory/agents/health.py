@@ -62,6 +62,7 @@ class AgentCircuitBreaker:
     opened_at: datetime | None = None
     retry_after_seconds: int | None = None
     last_failure_kind: AgentFailureKind | None = None
+    retry_after_is_explicit: bool = False
 
     def effective_cooldown_seconds(self) -> int:
         """Return the bounded cooldown for the current failure streak.
@@ -71,11 +72,16 @@ class AgentCircuitBreaker:
         effective quota cooldown after failed half-open probes. The effective base is
         the larger of the breaker default and the current retry-after floor, because
         production passes its failure-specific quota floor through that field. A
-        successful call resets the streak immediately.
+        successful call resets the streak immediately. A provider-supplied retry
+        hint takes precedence over the exponential policy, subject to the short
+        base cooldown that prevents repeated immediate probes.
         """
 
         cooldown = max(self.cooldown_seconds, self.retry_after_seconds or 0)
-        if self.last_failure_kind is AgentFailureKind.PROVIDER_QUOTA:
+        if (
+            self.last_failure_kind is AgentFailureKind.PROVIDER_QUOTA
+            and not self.retry_after_is_explicit
+        ):
             excess_failures = max(0, self.consecutive_failures - self.failure_threshold)
             # Cap the exponent before exponentiation. Durable state is validated but
             # may still contain an unexpectedly large non-negative streak, and
@@ -127,16 +133,19 @@ class AgentCircuitBreaker:
         self.opened_at = None
         self.retry_after_seconds = None
         self.last_failure_kind = None
+        self.retry_after_is_explicit = False
 
     def record_failure(
         self,
         kind: AgentFailureKind,
         now: datetime | None = None,
         retry_after_seconds: int | None = None,
+        retry_after_is_explicit: bool = False,
     ) -> None:
         previous_kind = self.last_failure_kind
         previous_retry_after = self.retry_after_seconds
         self.last_failure_kind = kind
+        self.retry_after_is_explicit = retry_after_is_explicit and retry_after_seconds is not None
         if retry_after_seconds is not None:
             bounded_retry_after = min(
                 max(retry_after_seconds, 0),
@@ -146,6 +155,7 @@ class AgentCircuitBreaker:
                 kind is AgentFailureKind.PROVIDER_QUOTA
                 and previous_kind is AgentFailureKind.PROVIDER_QUOTA
                 and previous_retry_after is not None
+                and not self.retry_after_is_explicit
             ):
                 self.retry_after_seconds = max(previous_retry_after, bounded_retry_after)
             else:
@@ -293,6 +303,9 @@ class AgentHealthStore:
                     else None
                 )
                 failure_value = item.get("last_failure_kind")
+                explicit_retry = item.get("retry_after_is_explicit", False)
+                if not isinstance(explicit_retry, bool):
+                    raise ValueError("persisted retry hint flag is invalid")
                 last_failure = (
                     AgentFailureKind(str(failure_value)) if failure_value is not None else None
                 )
@@ -305,6 +318,7 @@ class AgentHealthStore:
                     opened_at=opened,
                     retry_after_seconds=retry_after,
                     last_failure_kind=last_failure,
+                    retry_after_is_explicit=explicit_retry and retry_after is not None,
                 )
             except (KeyError, TypeError, ValueError):
                 if default is not None:
