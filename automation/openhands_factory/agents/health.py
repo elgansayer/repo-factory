@@ -19,6 +19,10 @@ from openhands_factory.state import atomic_write_json, read_json
 
 MAX_RETRY_AFTER_SECONDS = 7 * 24 * 3600
 MAX_QUOTA_COOLDOWN_MULTIPLIER = 4
+# A provider that hangs costs a full phase timeout per probe (an hour of a host
+# slot in production), so timeout streaks back off much further than quota ones.
+MAX_TIMEOUT_COOLDOWN_MULTIPLIER = 64
+MAX_TIMEOUT_COOLDOWN_SECONDS = 6 * 3600
 HALF_OPEN_PROBE_LEASE_SECONDS = 60
 
 
@@ -83,6 +87,14 @@ class AgentCircuitBreaker:
             )
             multiplier = min(2**bounded_exponent, MAX_QUOTA_COOLDOWN_MULTIPLIER)
             cooldown = min(cooldown * multiplier, MAX_RETRY_AFTER_SECONDS)
+        elif self.last_failure_kind is AgentFailureKind.PROVIDER_TIMEOUT:
+            # OpenCode Go hung on every call once its plan was exhausted
+            # (2026-11-06): 47 consecutive timeouts, each re-probed after 300 s
+            # and each holding a host slot for the whole 3600 s phase timeout.
+            excess_failures = max(0, self.consecutive_failures - self.failure_threshold)
+            bounded_exponent = min(excess_failures, MAX_TIMEOUT_COOLDOWN_MULTIPLIER.bit_length())
+            multiplier = min(2**bounded_exponent, MAX_TIMEOUT_COOLDOWN_MULTIPLIER)
+            cooldown = min(cooldown * multiplier, MAX_TIMEOUT_COOLDOWN_SECONDS)
         return cooldown
 
     def permits_call(self, now: datetime | None = None) -> bool:
