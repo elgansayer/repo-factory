@@ -21,7 +21,7 @@ MAX_RETRY_AFTER_SECONDS = 7 * 24 * 3600
 MAX_QUOTA_COOLDOWN_MULTIPLIER = 4
 # A provider that hangs costs a full phase timeout per probe (an hour of a host
 # slot in production), so timeout streaks back off much further than quota ones.
-MAX_TIMEOUT_COOLDOWN_MULTIPLIER = 64
+MAX_TIMEOUT_COOLDOWN_MULTIPLIER = 128
 MAX_TIMEOUT_COOLDOWN_SECONDS = 6 * 3600
 HALF_OPEN_PROBE_LEASE_SECONDS = 60
 
