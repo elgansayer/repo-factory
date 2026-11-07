@@ -166,3 +166,41 @@ def test_different_categories_are_not_suppressed_by_each_other(tmp_path: Path, m
     assert quarantine is True
     assert disk_alert is True
     assert len(sent_texts) == 2
+
+
+def test_discord_webhook_receives_alert_without_mentions(tmp_path: Path, monkeypatch) -> None:
+    config = factory_config(
+        tmp_path, FACTORY_DISCORD_WEBHOOK_URL="https://discord.example/api/webhooks/1/secret"
+    )
+    calls: list[tuple[str, dict]] = []
+
+    class Response:
+        is_success = True
+
+    def fake_post(url, json, timeout):
+        calls.append((url, json))
+        return Response()
+
+    monkeypatch.setattr("openhands_factory.alerts.httpx.post", fake_post)
+
+    assert AlertService(config).send("OpenHands factory alert: merged: #1 @everyone") is True
+    [(url, payload)] = calls
+    assert url.endswith("/secret")
+    assert payload["allowed_mentions"] == {"parse": []}
+    assert len(payload["content"]) <= 2000
+
+
+def test_discord_failure_does_not_log_the_webhook_secret(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    config = factory_config(
+        tmp_path, FACTORY_DISCORD_WEBHOOK_URL="https://discord.example/api/webhooks/1/secret"
+    )
+
+    def fail(url, **_kwargs):
+        raise httpx.ConnectError(f"offline {url}")
+
+    monkeypatch.setattr("openhands_factory.alerts.httpx.post", fail)
+
+    assert AlertService(config).send("failure") is False
+    assert "secret" not in caplog.text
