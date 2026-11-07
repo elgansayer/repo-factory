@@ -2247,11 +2247,21 @@ def test_verified_repair_of_existing_pull_request_returns_to_review_without_new_
     assert github.comments[-1][0] == 77
 
 
-@pytest.mark.parametrize(("latest_verified_sha", "commits"), [("verified-head", 0), (None, 1)])
+@pytest.mark.parametrize(
+    ("latest_verified_sha", "initial_base_sha", "commits"),
+    [
+        ("verified-head", None, 0),
+        (None, None, 1),
+        (None, "verified-head", 1),
+        # Restart after the Factory committed but before it recorded the SHA.
+        (None, "older-base", 0),
+    ],
+)
 def test_a_clean_worktree_commits_only_when_its_head_was_not_already_verified(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     latest_verified_sha: str | None,
+    initial_base_sha: str | None,
     commits: int,
 ) -> None:
     factory_config = config(tmp_path)
@@ -2267,6 +2277,7 @@ def test_a_clean_worktree_commits_only_when_its_head_was_not_already_verified(
         pull_request=77,
         head_sha="verified-head",
         latest_verified_sha=latest_verified_sha,
+        initial_base_sha=initial_base_sha,
     )
     pipeline = FactoryPipeline(factory_config, github=github)  # type: ignore[arg-type]
     pipeline.jobs.save({"77": job})
