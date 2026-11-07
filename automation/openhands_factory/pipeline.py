@@ -1856,6 +1856,12 @@ class FactoryPipeline:
                 or status.merge_state_status not in self._allowed_merge_states
             ):
                 job.state = JobState.REPAIRING
+            elif status.merge_state_status == "BEHIND":
+                # A strict base rule rejects merging a behind head, and retrying the
+                # same head loops forever. Update it; the new head is re-verified and
+                # re-reviewed through the head-change path above.
+                if self._update_pull_request_branch(job, status):
+                    job.state = JobState.CI_PENDING
             else:
                 if job.pull_request is None or job.head_sha is None:
                     raise FactoryError("Merge-queued job is missing pull request provenance")
