@@ -1285,11 +1285,22 @@ class FactoryPipeline:
             # A head the Factory already verified and pushed can re-enter VERIFYING
             # with a clean worktree; "nothing to commit" then failed every retry
             # (issue 9464, PR #9671, 2026-10-29). Any other clean tree still fails.
-            if (
-                job.latest_verified_sha != workflow.head_sha()
-                and job.verification_candidate_sha != workflow.head_sha()
-            ) or workflow.has_changes():
-                workflow.commit(f"fix: resolve issue {job.task.identifier}")
+            head = workflow.head_sha()
+            unrecorded = job.latest_verified_sha != head and job.verification_candidate_sha != head
+            if unrecorded or workflow.has_changes():
+                # A restart between commit and recording the verified SHA leaves
+                # the Factory's own commit at HEAD with a clean tree. Verification
+                # just passed on that tree, so HEAD is the verified content; a
+                # second commit can only fail with "nothing to commit" every retry.
+                if (
+                    unrecorded
+                    and job.initial_base_sha is not None
+                    and head != job.initial_base_sha
+                    and not workflow.has_changes()
+                ):
+                    pass
+                else:
+                    workflow.commit(f"fix: resolve issue {job.task.identifier}")
             if job.branch is None:
                 raise FactoryError("Job branch is missing")
             workflow.push(job.branch)
