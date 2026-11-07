@@ -90,29 +90,29 @@ def neptune_gate(
                 checks[check["name"]].append(check)
     # Draft-to-ready can leave multiple latest runs at the same app-pinned head.
     # Accept only unanimous literal success, never a green result that shadows
-    # a failed, skipped or still-pending duplicate.
+    # a failed, skipped or still-pending duplicate. Any non-success duplicate
+    # makes the check failed (or pending while one still runs) so the normal
+    # repair path handles it instead of a terminal error.
     pending = False
     failed: set[str] = set()
     for name, candidates in checks.items():
         if not candidates:
             pending = True
             continue
-        if len(candidates) != 1 and not all(
-            check.get("status") == "completed" and check.get("conclusion") == "success"
-            for check in candidates
+        statuses = [check.get("status") for check in candidates]
+        if any(
+            isinstance(status, str)
+            and status in {"queued", "in_progress", "waiting", "requested", "pending"}
+            for status in statuses
         ):
-            raise FactoryError("Neptune required check has ambiguous duplicate runs")
-        check = candidates[0]
-        status = check.get("status")
-        if isinstance(status, str) and status in {
-            "queued",
-            "in_progress",
-            "waiting",
-            "requested",
-            "pending",
-        }:
             pending = True
-        elif status != "completed" or check.get("conclusion") != "success":
+        if any(
+            check.get("status") == "completed" and check.get("conclusion") != "success"
+            for check in candidates
+        ) or any(
+            status not in {"completed", "queued", "in_progress", "waiting", "requested", "pending"}
+            for status in statuses
+        ):
             failed.add(name)
     return NeptuneGate(not pending and not failed, pending, frozenset(failed))
 

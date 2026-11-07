@@ -8,7 +8,7 @@
       "transport": "cli",
       "max_concurrency": 2,
       "model": "sonnet",
-      "max_turns": 100,
+      "max_turns": 250,
       "credential_paths": [".claude", ".claude.json"],
       "runtime_paths": [".local/bin", ".local/share/claude", ".npm-global"],
       "phase_models": {
@@ -29,7 +29,7 @@
       "transport": "cli",
       "max_concurrency": 2,
       "model": "gpt-5.6-sol",
-      "max_turns": 100,
+      "max_turns": 250,
       "credential_paths": [".codex"],
       "runtime_paths": [".local/bin", ".npm-global"]
     },

@@ -296,8 +296,22 @@ def test_success_cannot_shadow_any_unsuccessful_duplicate(
     candidates = [check(id=1), other]
     if reverse:
         candidates.reverse()
-    with pytest.raises(FactoryError):
-        neptune_gate([{"check_runs": candidates}], HEAD)
+    result = neptune_gate([{"check_runs": candidates}], HEAD)
+    assert not result.passed
+    if other.get("status") == "in_progress":
+        assert result.pending
+    else:
+        assert result.failed_checks == frozenset({NEPTUNE_GATE})
+
+
+def test_duplicate_failed_runs_route_to_repair_instead_of_erroring() -> None:
+    result = neptune_gate(
+        [{"check_runs": [check(id=1, conclusion="failure"), check(id=2, conclusion="failure")]}],
+        HEAD,
+    )
+    assert not result.passed
+    assert not result.pending
+    assert result.failed_checks == frozenset({NEPTUNE_GATE})
 
 
 def test_repeated_success_cannot_replace_another_missing_required_check() -> None:
