@@ -15,12 +15,15 @@ import hmac
 import html
 import json
 import os
+import re
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+
+from openhands_factory.operator_controls import read_controls, write_controls
 
 INSTANCES_DIR = Path("/etc/repo-factory/instances")
 SHARED_DIR = Path("/var/lib/repo-factory/shared")
@@ -127,13 +130,16 @@ def instance_status(name: str, env: dict[str, str]) -> dict[str, Any]:
         key=lambda job: str(job.get("updated_at") or ""),
         reverse=True,
     )
+    repository = env.get("GITHUB_REPOSITORY")
+    operator = read_controls(repository)
     return {
         "name": name,
-        "repository": env.get("FACTORY_GITHUB_REPOSITORY") or env.get("FACTORY_REPOSITORY_PROFILE"),
-        "priority": env.get("FACTORY_INSTANCE_PRIORITY", "normal"),
+        "repository": repository or env.get("FACTORY_REPOSITORY_PROFILE"),
+        "priority": operator.get("priority") or env.get("FACTORY_INSTANCE_PRIORITY", "normal"),
+        "operator": operator,
         "max_parallel_jobs": env.get("FACTORY_MAX_PARALLEL_JOBS"),
         "status": daemon.get("status"),
-        "paused": daemon.get("paused"),
+        "paused": bool(daemon.get("paused")) or bool(operator.get("paused")),
         "storage_blocked": daemon.get("storage_blocked"),
         "updated_at": daemon.get("updated_at"),
         "runtime_version": daemon.get("runtime_version"),
@@ -234,6 +240,42 @@ def _e(value: object) -> str:
     return html.escape("" if value is None else str(value))
 
 
+def _actions(item: dict[str, Any]) -> str:
+    name = _e(item["name"])
+    operator = item.get("operator") or {}
+    pause = "resume" if operator.get("paused") else "pause"
+    other = "normal" if item["priority"] == "high" else "high"
+    return (
+        f"<button onclick=\"act('{name}','{pause}')\">{pause.title()}</button> "
+        f"<button onclick=\"act('{name}','priority-{other}')\">Make {other}</button>"
+    )
+
+
+ACTIONS: dict[str, dict[str, Any]] = {
+    "pause": {"paused": True},
+    "resume": {"paused": False},
+    "priority-high": {"priority": "high"},
+    "priority-normal": {"priority": "normal"},
+}
+
+
+def apply_action(name: str, action: str, instances_dir: Path | None = None) -> dict[str, Any]:
+    """Apply one operator action to a configured project, by env-file name."""
+
+    if action not in ACTIONS:
+        raise ValueError("unknown action")
+    directory = instances_dir or INSTANCES_DIR
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+        raise ValueError("unknown project")
+    env_path = directory / f"{name}.env"
+    if not env_path.is_file():
+        raise ValueError("unknown project")
+    repository = read_env_file(env_path).get("GITHUB_REPOSITORY")
+    if not repository:
+        raise ValueError("project has no GITHUB_REPOSITORY")
+    return write_controls(repository, ACTIONS[action])
+
+
 def render_html(status: dict[str, Any]) -> str:
     rows = []
     for item in status["instances"]:
@@ -247,6 +289,7 @@ def render_html(status: dict[str, Any]) -> str:
             f"<td>{item['in_flight']}</td>"
             f"<td>{item['done_last_24h']}</td>"
             f"<td><small>{_e(item['updated_at'])}</small></td>"
+            f"<td>{_actions(item)}</td>"
             "</tr>"
         )
     providers = "".join(
@@ -293,7 +336,7 @@ small{{color:var(--muted)}} .closed{{color:var(--ok)}} .open{{color:var(--bad)}}
 <h1>Factory status</h1><p><small>Generated {_e(status["generated_at"])} · refreshes every 30 s ·
 <a href="api/status">JSON</a></small></p>
 <table><tr><th>Instance</th><th>Priority</th><th>Status</th><th>Running</th><th>Open</th>
-<th>Done 24h</th><th>Heartbeat</th></tr>{"".join(rows)}</table>
+<th>Done 24h</th><th>Heartbeat</th><th>Controls</th></tr>{"".join(rows)}</table>
 <h2>Providers</h2><table><tr><th>Provider</th><th>Breaker</th><th>Last failure</th>
 <th>Retry at</th></tr>
 {providers}</table>
@@ -301,6 +344,15 @@ small{{color:var(--muted)}} .closed{{color:var(--ok)}} .open{{color:var(--bad)}}
 · verifier exclusive: {"yes" if host["exclusive"] else "no"}
 · priority demand: {"yes" if host["priority_demand"] else "no"}</p>
 {"".join(sections)}
+<script>
+async function act(name, action) {{
+  if (!confirm(action + " " + name + "?")) return;
+  const r = await fetch("api/projects/" + name + "/" + action,
+    {{method: "POST", headers: {{"X-Factory-Action": "1"}}}});
+  alert(r.ok ? "Done: " + action + " " + name : "Failed: " + r.status);
+  location.reload();
+}}
+</script>
 </body></html>"""
 
 
@@ -344,6 +396,28 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send(200, "text/html; charset=utf-8", render_html(status).encode())
         else:
             self._send(404, "text/plain; charset=utf-8", b"not found\n")
+
+    def do_POST(self) -> None:
+        configured = os.environ.get("FACTORY_WEB_TOKEN") or (
+            os.environ.get("FACTORY_WEB_USER") and os.environ.get("FACTORY_WEB_PASSWORD")
+        )
+        # Writes need configured auth and a custom header no cross-site form can set.
+        if not configured or not self._authorized():
+            self._send(401, "text/plain; charset=utf-8", b"unauthorized\n")
+            return
+        if self.headers.get("X-Factory-Action") != "1":
+            self._send(403, "text/plain; charset=utf-8", b"missing action header\n")
+            return
+        parts = urlparse(self.path).path.strip("/").split("/")
+        if len(parts) != 4 or parts[:2] != ["api", "projects"]:
+            self._send(404, "text/plain; charset=utf-8", b"not found\n")
+            return
+        try:
+            result = apply_action(parts[2], parts[3])
+        except ValueError as error:
+            self._send(400, "text/plain; charset=utf-8", f"{error}\n".encode())
+            return
+        self._send(200, "application/json", json.dumps(result).encode())
 
     def _send(self, code: int, content_type: str, body: bytes) -> None:
         self.send_response(code)

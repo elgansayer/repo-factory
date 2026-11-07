@@ -104,6 +104,13 @@ def parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--force", action="store_true")
     projects = subcommands.add_parser("projects")
     projects.add_argument("--json", action="store_true")
+    projects.add_argument(
+        "action",
+        nargs="?",
+        choices=("list", "pause", "resume", "priority-high", "priority-normal"),
+        default="list",
+    )
+    projects.add_argument("name", nargs="?")
     web = subcommands.add_parser("web")
     web.add_argument("--listen", default=os.environ.get("FACTORY_WEB_LISTEN", "127.0.0.1:8787"))
     subcommands.add_parser("reconcile")
@@ -198,8 +205,18 @@ def main(arguments: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2))
             return 0
         if args.command == "projects":
-            from openhands_factory.web_status import collect_status, render_projects_table
+            from openhands_factory.web_status import (
+                apply_action,
+                collect_status,
+                render_projects_table,
+            )
 
+            if args.action != "list":
+                if not args.name:
+                    print("projects: a project name is required", file=sys.stderr)
+                    return 2
+                print(json.dumps(apply_action(args.name, args.action)))
+                return 0
             overview = collect_status()
             if args.json:
                 print(json.dumps(overview["instances"], indent=2))

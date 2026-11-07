@@ -729,7 +729,10 @@ class FactoryDaemon:
         request_process_shutdown()
 
     def paused(self) -> bool:
-        return bool(read_json(self.control_path, {"paused": False}).get("paused", False))
+        from openhands_factory.operator_controls import operator_paused
+
+        deploy_paused = bool(read_json(self.control_path, {"paused": False}).get("paused", False))
+        return deploy_paused or operator_paused(self.config.github_repository)
 
     def _storage_ready(self, active_task_ids: set[str] | None = None) -> bool:
         failed = [check for check in disk_space_checks(self.config) if not check.passed]

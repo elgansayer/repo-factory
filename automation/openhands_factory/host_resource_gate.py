@@ -30,6 +30,11 @@ PRIORITY_DEMAND_SECONDS = 600
 def instance_priority() -> str:
     """Host admission priority for this daemon: ``high`` or ``normal``."""
 
+    from openhands_factory.operator_controls import operator_priority
+
+    override = operator_priority(os.environ.get("GITHUB_REPOSITORY"))
+    if override is not None:
+        return override
     value = os.environ.get("FACTORY_INSTANCE_PRIORITY", "normal").strip().lower()
     return "high" if value == "high" else "normal"
 
@@ -64,6 +69,7 @@ class HostResourceGate:
         # A high-priority daemon (e.g. Neptune) registers demand on every
         # admission attempt. While that demand is fresh, normal daemons leave
         # `reserved_slots` provider slots free for it; idle demand expires.
+        self._explicit_priority = priority
         self.priority = priority if priority is not None else instance_priority()
         self.reserved_slots = (
             reserved_slots if reserved_slots is not None else reserved_priority_slots()
@@ -134,6 +140,8 @@ class HostResourceGate:
     def _admission_limit(self, payload: dict[str, object]) -> int:
         """Slots this daemon may fill, after any reservation for priority demand."""
 
+        if self._explicit_priority is None:
+            self.priority = instance_priority()
         if self.priority == "high" or not payload["priority"]:
             return self.shared_limit
         return max(self.shared_limit - self.reserved_slots, 1)
@@ -157,6 +165,8 @@ class HostResourceGate:
             if payload["exclusive"] is not None or not isinstance(shared, list):
                 self._save(payload)
                 return False
+            if self._explicit_priority is None:
+                self.priority = instance_priority()
             if self.priority == "high":
                 self._register_priority_demand(payload)
             if len(shared) >= self._admission_limit(payload):
