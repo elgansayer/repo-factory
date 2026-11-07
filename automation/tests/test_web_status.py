@@ -107,3 +107,69 @@ def test_projects_table_lists_each_instance() -> None:
     lines = render_projects_table(status).splitlines()
     assert lines[0].startswith("PROJECT")
     assert lines[1].split() == ["neptune", "high", "2", "running", "1", "4", "1"]
+
+
+def test_operator_actions_write_only_the_operator_file(tmp_path: Path, monkeypatch) -> None:
+    from openhands_factory import operator_controls
+    from openhands_factory.web_status import apply_action
+
+    instances = tmp_path / "instances"
+    instances.mkdir()
+    (instances / "neptune.env").write_text("GITHUB_REPOSITORY=elgansayer/Neptune\n")
+    operator_dir = tmp_path / "operator"
+    monkeypatch.setenv("FACTORY_OPERATOR_CONTROL_DIR", str(operator_dir))
+
+    assert apply_action("neptune", "pause", instances) == {"paused": True}
+    assert apply_action("neptune", "priority-high", instances) == {
+        "paused": True,
+        "priority": "high",
+    }
+    assert operator_controls.operator_paused("elgansayer/Neptune")
+    assert operator_controls.operator_priority("ELGANSAYER/neptune") == "high"
+    assert apply_action("neptune", "resume", instances)["paused"] is False
+    assert [path.name for path in operator_dir.iterdir()] == ["elgansayer__neptune.json"]
+    for bad in [("../etc", "pause"), ("missing", "pause"), ("neptune", "delete")]:
+        try:
+            apply_action(*bad, instances)
+            raise AssertionError(bad)
+        except ValueError:
+            pass
+
+
+def test_post_requires_configured_auth_and_action_header(monkeypatch, tmp_path: Path) -> None:
+    import base64
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from openhands_factory import web_status
+
+    instances = tmp_path / "instances"
+    instances.mkdir()
+    (instances / "neptune.env").write_text("GITHUB_REPOSITORY=elgansayer/Neptune\n")
+    monkeypatch.setattr(web_status, "INSTANCES_DIR", instances)
+    monkeypatch.setenv("FACTORY_OPERATOR_CONTROL_DIR", str(tmp_path / "operator"))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_status.StatusHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_address[1]}/api/projects/neptune/pause"
+
+    def post(headers: dict[str, str]) -> int:
+        request = urllib.request.Request(url, method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+
+    try:
+        monkeypatch.delenv("FACTORY_WEB_USER", raising=False)
+        monkeypatch.delenv("FACTORY_WEB_TOKEN", raising=False)
+        assert post({"X-Factory-Action": "1"}) == 401  # no auth configured: no writes
+        monkeypatch.setenv("FACTORY_WEB_USER", "admin")
+        monkeypatch.setenv("FACTORY_WEB_PASSWORD", "pw")
+        auth = {"Authorization": "Basic " + base64.b64encode(b"admin:pw").decode()}
+        assert post(auth) == 403
+        assert post({**auth, "X-Factory-Action": "1"}) == 200
+    finally:
+        server.shutdown()
