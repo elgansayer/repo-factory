@@ -18,6 +18,7 @@ LOGGER = logging.getLogger(__name__)
 DEFAULT_COOLDOWN_SECONDS = 1800
 MAX_ALERT_ISSUES = 8
 MAX_TELEGRAM_TEXT = 4000
+MAX_DISCORD_TEXT = 2000
 
 
 def _alert_category(message: str) -> str:
@@ -51,7 +52,11 @@ class AlertService:
         self.state_path = config.state_dir / "alert_cooldowns.json"
 
     def send(self, message: str, *, category: str | None = None) -> bool:
-        if self.config.telegram_bot_token is None or self.config.telegram_chat_id is None:
+        telegram = (
+            self.config.telegram_bot_token is not None and self.config.telegram_chat_id is not None
+        )
+        discord = self.config.discord_webhook_url is not None
+        if not telegram and not discord:
             return False
 
         resolved_category = category or _alert_category(message)
@@ -82,27 +87,56 @@ class AlertService:
             )
 
         text = redact_text(text)
-        if len(text) > MAX_TELEGRAM_TEXT:
-            suffix = "\n...[alert truncated]"
-            text = f"{text[: MAX_TELEGRAM_TEXT - len(suffix)]}{suffix}"
-
-        try:
-            response = httpx.post(
-                "https://api.telegram.org/bot"
-                f"{self.config.telegram_bot_token.get_secret_value()}/sendMessage",
-                json={
-                    "chat_id": self.config.telegram_chat_id.get_secret_value(),
-                    "text": text,
-                    "disable_web_page_preview": True,
-                },
-                timeout=20,
-            )
-            sent = response.is_success
-        except Exception as error:
-            LOGGER.warning("Telegram alert delivery failed: %s", error)
-            sent = False
+        sent = False
+        if telegram:
+            sent = self._send_telegram(_truncate(text, MAX_TELEGRAM_TEXT)) or sent
+        if discord:
+            sent = self._send_discord(_truncate(text, MAX_DISCORD_TEXT)) or sent
 
         if sent:
             state[resolved_category] = {"last_sent": now.isoformat(), "suppressed": 0}
             atomic_write_json(self.state_path, state)
         return sent
+
+    def _send_telegram(self, text: str) -> bool:
+        token = self.config.telegram_bot_token
+        chat = self.config.telegram_chat_id
+        if token is None or chat is None:
+            return False
+        try:
+            response = httpx.post(
+                f"https://api.telegram.org/bot{token.get_secret_value()}/sendMessage",
+                json={
+                    "chat_id": chat.get_secret_value(),
+                    "text": text,
+                    "disable_web_page_preview": True,
+                },
+                timeout=20,
+            )
+            return response.is_success
+        except Exception as error:
+            LOGGER.warning("Telegram alert delivery failed: %s", error)
+            return False
+
+    def _send_discord(self, text: str) -> bool:
+        webhook = self.config.discord_webhook_url
+        if webhook is None:
+            return False
+        try:
+            response = httpx.post(
+                webhook.get_secret_value(),
+                json={"content": text, "allowed_mentions": {"parse": []}},
+                timeout=20,
+            )
+            return response.is_success
+        except Exception as error:
+            # httpx errors can include the URL, which embeds the webhook secret.
+            LOGGER.warning("Discord alert delivery failed: %s", type(error).__name__)
+            return False
+
+
+def _truncate(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    suffix = "\n...[alert truncated]"
+    return f"{text[: limit - len(suffix)]}{suffix}"

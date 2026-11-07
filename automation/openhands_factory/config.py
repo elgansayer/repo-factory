@@ -656,6 +656,7 @@ class FactoryConfig(BaseModel):
     ready_label: str = "factory-ready"
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: SecretStr | None = None
+    discord_webhook_url: SecretStr | None = None
     podman_path: Path = Path("/usr/bin/podman")
     task_image: str = "localhost/hellotalk-factory-worker:current"
     dry_run: bool = False
@@ -1093,6 +1094,9 @@ class FactoryConfig(BaseModel):
                 else None,
                 telegram_chat_id=SecretStr(env["TELEGRAM_CHAT_ID"])
                 if env.get("TELEGRAM_CHAT_ID")
+                else None,
+                discord_webhook_url=SecretStr(env["FACTORY_DISCORD_WEBHOOK_URL"])
+                if env.get("FACTORY_DISCORD_WEBHOOK_URL")
                 else None,
                 podman_path=Path(env.get("FACTORY_PODMAN_PATH", "/usr/bin/podman")),
                 task_image=env.get(
