@@ -102,6 +102,8 @@ def parser() -> argparse.ArgumentParser:
     dashboard = subcommands.add_parser("dashboard")
     dashboard.add_argument("action", choices=("show", "sync"))
     dashboard.add_argument("--force", action="store_true")
+    web = subcommands.add_parser("web")
+    web.add_argument("--listen", default=os.environ.get("FACTORY_WEB_LISTEN", "127.0.0.1:8787"))
     subcommands.add_parser("reconcile")
     subcommands.add_parser("alert-daemon-failed")
     backlog = subcommands.add_parser("backlog")
@@ -192,6 +194,11 @@ def main(arguments: list[str] | None = None) -> int:
 
             report = prepare_profile(args.source, args.catalogue, args.output, args.model)
             print(json.dumps(report, indent=2))
+            return 0
+        if args.command == "web":
+            from openhands_factory.web_status import serve
+
+            serve(args.listen)
             return 0
         config = _config()
         if args.command == "doctor":
