@@ -85,3 +85,25 @@ def test_basic_auth_is_required_when_configured(monkeypatch, tmp_path: Path) -> 
             assert json.loads(response.read())["instances"] == []
     finally:
         server.shutdown()
+
+
+def test_projects_table_lists_each_instance() -> None:
+    from openhands_factory.web_status import render_projects_table
+
+    status = {
+        "instances": [
+            {
+                "name": "neptune",
+                "priority": "high",
+                "max_parallel_jobs": "2",
+                "paused": False,
+                "status": "running",
+                "active_jobs": ["23"],
+                "in_flight": 4,
+                "done_last_24h": 1,
+            }
+        ]
+    }
+    lines = render_projects_table(status).splitlines()
+    assert lines[0].startswith("PROJECT")
+    assert lines[1].split() == ["neptune", "high", "2", "running", "1", "4", "1"]
