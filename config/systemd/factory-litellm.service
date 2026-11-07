@@ -1,0 +1,16 @@
+[Unit]
+Description=Factory local LiteLLM routing proxy (no workers)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/dev/factory-ops/litellm
+Environment=PYTHONPATH=/home/dev/factory-ops/litellm
+Environment=PATH=/home/dev/.local/bin:/home/dev/.opencode/bin:/opt/hellotalk-factory/venv/bin:/usr/bin:/bin
+EnvironmentFile=-/home/dev/factory-ops/routing.env
+ExecStart=/opt/hellotalk-factory/venv/bin/litellm --config /home/dev/litellm_config.yaml --host 127.0.0.1 --port 4000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077

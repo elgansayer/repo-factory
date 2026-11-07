@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Wrapper for pytest that pipes build output through concise-build (grep -C 2 for compiler errors)
+REAL_BIN="/usr/bin/pytest"
+[[ ! -x "$REAL_BIN" ]] && REAL_BIN="$(which -a pytest | grep -v 'factory-tools/bin' | head -n 1)"
+if [[ "${FACTORY_RAW_BUILD_LOGS:-0}" == "1" ]]; then
+    exec "$REAL_BIN" "$@"
+fi
+exec /opt/hellotalk-factory/venv/bin/concise-build "$REAL_BIN" "$@"

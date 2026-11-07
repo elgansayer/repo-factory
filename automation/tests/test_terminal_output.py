@@ -283,10 +283,11 @@ def test_adapter_run_uses_the_new_terminal_boundary(provider, output, expected, 
     "output",
     [SESSION, claude_result(True, SESSION), claude_result(True, SESSION, "error_during_execution")],
 )
-def test_observed_session_quota_uses_quota_policy_without_inferring_reset_clock(output):
+def test_observed_session_quota_uses_explicit_utc_reset_clock(output):
     _, failure = claude_outcome(process(output, "authentication failed is earlier tool text"))
     assert failure.kind is AgentFailureKind.PROVIDER_QUOTA
-    assert failure.retry_after_seconds is None
+    assert failure.retry_after_seconds is not None
+    assert 0 <= failure.retry_after_seconds <= 24 * 3600
 
 
 @pytest.mark.parametrize("subtype", ["error_max_turns", "error_max_budget_usd", "unknown-error"])
@@ -310,7 +311,7 @@ def test_session_quota_words_in_success_or_multiline_transcript_do_not_set_accou
     assert failure.kind is AgentFailureKind.INVALID_AGENT_OUTPUT
 
 
-def test_real_adapter_and_router_persist_session_quota_with_existing_cooldown(tmp_path):
+def test_real_adapter_and_router_persist_provider_session_reset(tmp_path):
     class Runner:
         calls = 0
 
@@ -340,7 +341,9 @@ def test_real_adapter_and_router_persist_session_quota_with_existing_cooldown(tm
         router.run(AgentRequest(AgentPhase.CODE_REVIEW, job.task, "owned fixture", tmp_path), job)
     persisted = store.load(router._default_breakers())[adapter.name]
     assert persisted.last_failure_kind is AgentFailureKind.PROVIDER_QUOTA
-    assert persisted.retry_after_seconds == 901
+    assert persisted.retry_after_seconds == job.provider_history[0]["retry_after_seconds"]
+    assert persisted.retry_after_is_explicit
+    assert persisted.effective_cooldown_seconds() == max(300, persisted.retry_after_seconds)
     assert persisted.state == "open"
     assert runner.calls == 1 and len(job.provider_history) == 1
     assert job.provider_history[0]["failure_classification"] == "provider_quota"

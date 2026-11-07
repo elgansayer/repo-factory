@@ -11,6 +11,7 @@ from openhands_factory.agents.base import (
 from openhands_factory.agents.claude import ClaudeCodeProvider
 from openhands_factory.agents.codex import CodexProvider
 from openhands_factory.agents.conservative import ConservativeAgentRouter
+from openhands_factory.agents.deepseek import DeepSeekProvider
 from openhands_factory.agents.google import GoogleAgentProvider
 from openhands_factory.agents.health import AgentCircuitBreaker, AgentHealthStore
 from openhands_factory.agents.opencode import OpenCodeProvider
@@ -40,6 +41,7 @@ __all__ = [
     "CodexProvider",
     "ConfigRoutingPolicy",
     "ConservativeAgentRouter",
+    "DeepSeekProvider",
     "GoogleAgentProvider",
     "OpenCodeProvider",
     "OpenHandsProvider",

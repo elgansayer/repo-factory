@@ -365,6 +365,10 @@ class FactoryPipeline:
                 runtime_paths=pi.runtime_paths,
             ),
         ]
+        if "deepseek" in config.agents.providers:
+            from openhands_factory.agents.deepseek_cli import DeepSeekCLIProvider
+
+            providers.append(DeepSeekCLIProvider(config.agents.providers["deepseek"]))
         provider_limits = {
             name: provider.max_concurrency
             for name, provider in config.agents.providers.items()

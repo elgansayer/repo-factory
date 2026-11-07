@@ -1,0 +1,269 @@
+{
+  "routing_enabled": true,
+  "routing_mode": "experimental",
+  "providers": {
+    "google": {
+      "enabled": true,
+      "command": "agy",
+      "cli_variant": "antigravity",
+      "auth_mode": "subscription",
+      "transport": "cli",
+      "max_concurrency": 2,
+      "model": "gemini-4-argon-high",
+      "credential_paths": [
+        ".gemini"
+      ],
+      "runtime_paths": [
+        ".local/bin",
+        ".npm-global",
+        "factory-tools",
+        ".agents",
+        ".local/lib",
+        ".local/share/uv",
+        ".cache/uv",
+        ".cache/caveman"
+      ],
+      "phase_models": {
+        "planning": "gemini-4-argon-high",
+        "architecture": "gemini-4-argon-high",
+        "security_review": "gemini-4-argon-high",
+        "implementation": "gemini-3.8-flash-high",
+        "quality_repair": "gemini-3.8-flash-high",
+        "code_review": "gemini-4-argon-high",
+        "ci_repair": "gemini-3.8-flash-high",
+        "general_action": "gemini-3.8-flash-high"
+      }
+    },
+    "opencode": {
+      "enabled": true,
+      "command": "opencode",
+      "wrapper_command": "caveman",
+      "auth_mode": "subscription",
+      "transport": "cli",
+      "max_concurrency": 4,
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "credential_paths": [
+        ".config/opencode",
+        ".local/share/opencode",
+        ".caveman"
+      ],
+      "runtime_paths": [
+        ".local/bin",
+        ".npm-global",
+        ".opencode",
+        "factory-tools",
+        ".agents",
+        ".local/lib",
+        ".local/share/uv",
+        ".cache/uv",
+        ".cache/caveman"
+      ],
+      "phase_models": {
+        "planning": "opencode-go/deepseek-v4-pro",
+        "architecture": "opencode-go/deepseek-v4-pro",
+        "security_review": "opencode-go/qwen3.8-max",
+        "implementation": "opencode-go/deepseek-v4.1-flash",
+        "quality_repair": "opencode-go/qwen3.8-flash",
+        "code_review": "opencode-go/qwen3.8-max",
+        "ci_repair": "opencode-go/deepseek-v4.1-flash",
+        "general_action": "opencode-go/deepseek-v4.1-flash"
+      }
+    },
+    "deepseek": {
+      "enabled": true,
+      "command": "opencode",
+      "auth_mode": "api",
+      "transport": "cli",
+      "max_concurrency": 4,
+      "model": "deepseek_chat",
+      "credential_paths": [],
+      "runtime_paths": [
+        ".local/bin",
+        "factory-tools",
+        ".agents",
+        ".local/lib",
+        ".local/share/uv",
+        ".cache/uv",
+        ".cache/caveman"
+      ],
+      "phase_models": {
+        "planning": "deepseek_reasoner",
+        "architecture": "deepseek_reasoner",
+        "security_review": "deepseek_reasoner",
+        "implementation": "deepseek_chat",
+        "quality_repair": "deepseek_chat",
+        "code_review": "deepseek_reasoner",
+        "ci_repair": "deepseek_chat",
+        "general_action": "deepseek_chat"
+      }
+    },
+    "claude": {
+      "enabled": true,
+      "command": "claude",
+      "wrapper_command": "caveman",
+      "auth_mode": "subscription",
+      "transport": "cli",
+      "max_concurrency": 2,
+      "model": "sonnet",
+      "max_turns": 100,
+      "credential_paths": [
+        ".claude",
+        ".claude.json",
+        ".caveman"
+      ],
+      "runtime_paths": [
+        ".local/bin",
+        ".local/share/claude",
+        ".npm-global",
+        "factory-tools",
+        ".agents",
+        ".local/lib",
+        ".local/share/uv",
+        ".cache/uv",
+        ".cache/caveman"
+      ],
+      "phase_models": {
+        "planning": "opus",
+        "architecture": "opus",
+        "security_review": "opus",
+        "implementation": "sonnet",
+        "quality_repair": "sonnet",
+        "code_review": "opus",
+        "ci_repair": "sonnet",
+        "general_action": "sonnet"
+      },
+      "active_until": "2026-12-02T00:00:00+00:00"
+    },
+    "codex": {
+      "enabled": true,
+      "command": "codex",
+      "wrapper_command": "caveman",
+      "auth_mode": "subscription",
+      "transport": "cli",
+      "max_concurrency": 2,
+      "model": "gpt-5.6-sol",
+      "max_turns": 100,
+      "credential_paths": [
+        ".codex",
+        ".caveman"
+      ],
+      "runtime_paths": [
+        ".local/bin",
+        ".npm-global",
+        "factory-tools",
+        ".agents",
+        ".local/lib",
+        ".local/share/uv",
+        ".cache/uv",
+        ".cache/caveman"
+      ],
+      "active_until": "2026-11-17T00:00:00+00:00"
+    },
+    "openhands": {
+      "enabled": false,
+      "auth_mode": "api",
+      "transport": "openhands-sdk",
+      "emergency_only": true,
+      "max_concurrency": 1,
+      "model": "deepseek/deepseek-chat"
+    },
+    "pi": {
+      "enabled": false,
+      "command": "pi",
+      "auth_mode": "subscription",
+      "transport": "cli",
+      "max_concurrency": 2,
+      "model": "github-copilot/claude-sonnet-5",
+      "credential_paths": [
+        ".pi"
+      ],
+      "runtime_paths": [
+        ".local/bin",
+        ".local/lib",
+        "factory-tools"
+      ]
+    }
+  },
+  "routing": {
+    "planning": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "architecture": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "implementation": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "security_review": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "quality_repair": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "code_review": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "ci_repair": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "general_action": [
+      "codex",
+      "claude",
+      "google",
+      "opencode",
+      "deepseek"
+    ],
+    "skip_busy_providers": true,
+    "same_provider_retries": 0
+  },
+  "timeouts": {
+    "planning": 1200,
+    "architecture": 1800,
+    "implementation": 3600,
+    "security_review": 1800,
+    "quality_repair": 1800,
+    "code_review": 900,
+    "ci_repair": 1800,
+    "general_action": 300
+  },
+  "circuit_breaker": {
+    "failure_threshold": 1,
+    "default_cooldown_seconds": 300,
+    "rate_limit_cooldown_seconds": 3600,
+    "quota_cooldown_seconds": 18000,
+    "auth_cooldown_seconds": 1800,
+    "unavailable_cooldown_seconds": 300,
+    "transport_cooldown_seconds": 1800,
+    "timeout_cooldown_seconds": 300,
+    "crash_cooldown_seconds": 300,
+    "invalid_output_cooldown_seconds": 900
+  }
+}

@@ -845,6 +845,11 @@ def agent_provider_checks(config: FactoryConfig) -> list[Check]:
         maximum_agent_lease_seconds,
     )
 
+    if "deepseek" in configured:
+        from openhands_factory.agents.deepseek_cli import DeepSeekCLIProvider
+
+        providers["deepseek"] = DeepSeekCLIProvider(configured["deepseek"])
+
     breaker_config = config.agents.circuit_breaker
     breaker_defaults = {
         name: AgentCircuitBreaker(

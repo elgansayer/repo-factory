@@ -382,8 +382,10 @@ class AgentRouter:
                     result.failure.kind,
                     retry_after_seconds=(
                         result.failure.retry_after_seconds
-                        or self.failure_cooldowns.get(result.failure.kind)
+                        if result.failure.retry_after_seconds is not None
+                        else self.failure_cooldowns.get(result.failure.kind)
                     ),
+                    retry_after_is_explicit=result.failure.retry_after_seconds is not None,
                 )
 
         if self.health_store is None:

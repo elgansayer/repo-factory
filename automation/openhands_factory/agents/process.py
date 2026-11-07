@@ -278,6 +278,9 @@ def provider_environment(
     environment = {key: values[key] for key in _ENVIRONMENT_ALLOWLIST if key in values}
     environment.setdefault("HOME", str(Path.home()))
     environment.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+    tools_path = str(Path(environment["HOME"]) / "factory-tools" / "bin")
+    if Path(tools_path).is_dir() and tools_path not in environment["PATH"].split(":"):
+        environment["PATH"] = tools_path + ":" + environment["PATH"]
     environment.setdefault("LANG", "C.UTF-8")
     home = environment["HOME"]
     environment.update(

@@ -83,6 +83,14 @@ def podman_run_arguments(
         dependency_path = repository / relative
         if dependency_path.is_dir():
             arguments.extend(("--volume", f"{dependency_path}:{workspace}/{relative}:ro,Z"))
+    tools = Path("/home/dev/factory-tools/bin")
+    if tools.is_dir():
+        arguments.extend(("--volume", f"{tools}:{tools}:ro"))
+        for executable in ("concise-build", "rtk", "ast-grep"):
+            source = Path("/opt/hellotalk-factory/venv/bin") / executable
+            if source.is_file():
+                arguments.extend(("--volume", f"{source}:{source}:ro"))
+        command = f"export PATH={tools}:$PATH; " + command
     arguments.extend((f"--workdir={workspace}", image, "/bin/bash", "-lc", command))
     return arguments
 
