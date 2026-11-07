@@ -15,7 +15,7 @@ def test_status_combines_instances_without_job_bodies_or_secrets(tmp_path: Path)
     shared = tmp_path / "shared"
     shared.mkdir()
     (instances / "neptune.env").write_text(
-        f"FACTORY_STATE_DIR={state}\nFACTORY_INSTANCE_PRIORITY=high\nDEEPSEEK_API_KEY=secret\n"
+        f"FACTORY_STATE_DIR={state}\nFACTORY_INSTANCE_PRIORITY=high\nDEEPSEEK_API_KEY=s3cr3t-value\n"
     )
     now = datetime.now(UTC).isoformat()
     (state / "jobs.json").write_text(
@@ -45,7 +45,7 @@ def test_status_combines_instances_without_job_bodies_or_secrets(tmp_path: Path)
     page = render_html(status)
     rendered = json.dumps(status) + page
     assert "private body" not in rendered
-    assert "secret" not in rendered
+    assert "s3cr3t-value" not in rendered
     assert "&lt;b&gt;x&lt;/b&gt;" in page
 
 

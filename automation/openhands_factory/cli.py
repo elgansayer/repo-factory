@@ -198,6 +198,10 @@ def main(arguments: list[str] | None = None) -> int:
     args = parser().parse_args(arguments)
     try:
         protect_process_credentials()
+        from openhands_factory.operator_secrets import load_missing_secrets
+
+        # Dashboard-stored secrets fill only keys the environment lacks.
+        load_missing_secrets()
         if args.command == "opencode-profile":
             from openhands_factory.opencode_profile import prepare_profile
 

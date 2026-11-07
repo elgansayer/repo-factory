@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from openhands_factory.operator_controls import read_controls, write_controls
+from openhands_factory.operator_secrets import SECRET_KEYS, set_secret, stored_keys
 
 INSTANCES_DIR = Path("/etc/repo-factory/instances")
 SHARED_DIR = Path("/var/lib/repo-factory/shared")
@@ -334,7 +335,7 @@ small{{color:var(--muted)}} .closed{{color:var(--ok)}} .open{{color:var(--bad)}}
 .half-open{{color:var(--warn)}}
 </style></head><body>
 <h1>Factory status</h1><p><small>Generated {_e(status["generated_at"])} · refreshes every 30 s ·
-<a href="api/status">JSON</a></small></p>
+<a href="api/status">JSON</a> · <a href="secrets">Secrets</a></small></p>
 <table><tr><th>Instance</th><th>Priority</th><th>Status</th><th>Running</th><th>Open</th>
 <th>Done 24h</th><th>Heartbeat</th><th>Controls</th></tr>{"".join(rows)}</table>
 <h2>Providers</h2><table><tr><th>Provider</th><th>Breaker</th><th>Last failure</th>
@@ -354,6 +355,44 @@ async function act(name, action) {{
 }}
 </script>
 </body></html>"""
+
+
+def render_secrets_html() -> str:
+    stored = stored_keys()
+    rows = "".join(
+        f"<tr><td><code>{_e(key)}</code><br><small>{_e(label)}</small></td>"
+        f"<td>{'stored' if key in stored else '—'}</td>"
+        f"<td><input type='password' id='v-{_e(key)}' autocomplete='off' "
+        f"placeholder='new value'> <button onclick=\"save('{_e(key)}')\">Save</button> "
+        f"<button onclick=\"save('{_e(key)}', true)\">Clear</button></td></tr>"
+        for key, label in SECRET_KEYS.items()
+    )
+    return f"""<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Factory Secrets</title>
+<style>
+:root{{--bg:#fff;--fg:#1b1b1b;--muted:#666;--line:#ddd}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#111;--fg:#eee;--muted:#999;--line:#333}}}}
+body{{background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif;
+  margin:0 auto;max-width:900px;padding:16px}}
+table{{border-collapse:collapse;width:100%;display:block;overflow-x:auto}}
+th,td{{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}}
+small{{color:var(--muted)}} input{{max-width:220px}}
+</style></head><body><p><a href="./">← Status</a></p><h1>Secrets</h1>
+<p>Values are stored on the host (mode 600) and used only when a key is missing from the
+Factory environment. They are never shown again. Restart or redeploy to apply.</p>
+<table><tr><th>Key</th><th>Stored</th><th>Set</th></tr>{rows}</table>
+<script>
+async function save(key, clear) {{
+  const input = document.getElementById("v-" + key);
+  const value = clear ? "" : input.value;
+  if (!clear && !value) return;
+  const r = await fetch("api/secrets/" + key, {{method: "POST",
+    headers: {{"X-Factory-Action": "1", "Content-Type": "text/plain"}}, body: value}});
+  input.value = "";
+  alert(r.ok ? (clear ? "Cleared " : "Saved ") + key : "Failed: " + r.status);
+  location.reload();
+}}
+</script></body></html>"""
 
 
 class StatusHandler(BaseHTTPRequestHandler):
@@ -394,6 +433,8 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send(200, "application/json", json.dumps(status, indent=2).encode())
         elif path in {"", "/"}:
             self._send(200, "text/html; charset=utf-8", render_html(status).encode())
+        elif path == "/secrets":
+            self._send(200, "text/html; charset=utf-8", render_secrets_html().encode())
         else:
             self._send(404, "text/plain; charset=utf-8", b"not found\n")
 
@@ -409,6 +450,19 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send(403, "text/plain; charset=utf-8", b"missing action header\n")
             return
         parts = urlparse(self.path).path.strip("/").split("/")
+        if len(parts) == 3 and parts[:2] == ["api", "secrets"]:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > 4096:
+                self._send(413, "text/plain; charset=utf-8", b"too large\n")
+                return
+            value = self.rfile.read(length).decode("utf-8", "replace").strip()
+            try:
+                set_secret(parts[2], value or None)
+            except ValueError as error:
+                self._send(400, "text/plain; charset=utf-8", f"{error}\n".encode())
+                return
+            self._send(200, "application/json", json.dumps({"stored": bool(value)}).encode())
+            return
         if len(parts) != 4 or parts[:2] != ["api", "projects"]:
             self._send(404, "text/plain; charset=utf-8", b"not found\n")
             return
