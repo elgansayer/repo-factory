@@ -118,3 +118,31 @@ def test_exception_in_held_body_releases_writer(tmp_path: Path) -> None:
     with pytest.raises(TimeoutError, match="held operation"), gate.exclusive():
         raise TimeoutError("held operation cancelled")
     assert gate.available_shared_slots() == 2
+
+
+def test_normal_daemon_leaves_reserved_slot_for_fresh_high_priority_demand(tmp_path: Path) -> None:
+    path = tmp_path / "gate.json"
+    high = HostResourceGate(path, 3, priority="high", reserved_slots=1)
+    normal = HostResourceGate(path, 3, priority="normal", reserved_slots=1)
+
+    assert high.acquire_shared("high-1")  # registers demand
+    assert normal.acquire_shared("normal-1")
+    # Two of three slots are taken; the last one stays free for priority work.
+    assert not normal.acquire_shared("normal-2")
+    assert normal.available_shared_slots() == 0
+    assert high.acquire_shared("high-2")
+    assert not high.acquire_shared("high-3")
+
+
+def test_without_priority_demand_normal_daemon_uses_every_slot(tmp_path: Path) -> None:
+    path = tmp_path / "gate.json"
+    normal = HostResourceGate(path, 3, priority="normal", reserved_slots=1)
+
+    assert all(normal.acquire_shared(f"normal-{index}") for index in range(3))
+
+
+def test_reservation_never_blocks_a_single_slot_gate(tmp_path: Path) -> None:
+    path = tmp_path / "gate.json"
+    HostResourceGate(path, 1, priority="high").acquire_shared("high")
+    HostResourceGate(path, 1, priority="high").release_shared("high")
+    assert HostResourceGate(path, 1, priority="normal").acquire_shared("normal")
