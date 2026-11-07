@@ -114,9 +114,10 @@ class HostResourceGate:
         }
 
     def _register_priority_demand(self, payload: dict[str, object]) -> None:
+        current = payload["priority"]
         demand = [
             entry
-            for entry in payload["priority"]  # type: ignore[union-attr]
+            for entry in (current if isinstance(current, list) else [])
             if isinstance(entry, dict) and entry.get("pid") != os.getpid()
         ]
         demand.append(
