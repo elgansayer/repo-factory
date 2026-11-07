@@ -3,11 +3,14 @@
 Serves one HTML page and ``/api/status`` JSON built from the instances'
 durable state files. It never writes state, never shows job bodies, errors in
 full or credentials, and binds to loopback unless told otherwise. Set
-``FACTORY_WEB_TOKEN`` to require ``?token=`` (or ``Authorization: Bearer``).
+``FACTORY_WEB_TOKEN`` to require ``?token=`` (or ``Authorization: Bearer``), or
+``FACTORY_WEB_USER`` and ``FACTORY_WEB_PASSWORD`` for HTTP basic auth.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hmac
 import html
 import json
@@ -186,8 +189,10 @@ def _host_gate(shared_dir: Path) -> dict[str, Any]:
 
 
 def collect_status(
-    instances_dir: Path = INSTANCES_DIR, shared_dir: Path = SHARED_DIR
+    instances_dir: Path | None = None, shared_dir: Path | None = None
 ) -> dict[str, Any]:
+    instances_dir = instances_dir or INSTANCES_DIR
+    shared_dir = shared_dir or SHARED_DIR
     instances = [
         instance_status(path.stem, read_env_file(path))
         for path in sorted(instances_dir.glob("*.env"))
@@ -278,19 +283,35 @@ class StatusHandler(BaseHTTPRequestHandler):
     server_version = "FactoryStatus/1"
 
     def _authorized(self) -> bool:
+        header = self.headers.get("Authorization", "")
+        user = os.environ.get("FACTORY_WEB_USER")
+        password = os.environ.get("FACTORY_WEB_PASSWORD")
+        if user and password:
+            if not header.startswith("Basic "):
+                return False
+            try:
+                supplied = base64.b64decode(header[6:], validate=True).decode()
+            except (binascii.Error, UnicodeDecodeError):
+                return False
+            return hmac.compare_digest(supplied.encode(), f"{user}:{password}".encode())
         token = os.environ.get("FACTORY_WEB_TOKEN")
         if not token:
             return True
         query = parse_qs(urlparse(self.path).query).get("token", [""])[0]
-        header = self.headers.get("Authorization", "")
         supplied = header.removeprefix("Bearer ") if header.startswith("Bearer ") else query
         return hmac.compare_digest(supplied.encode(), token.encode())
 
     def do_GET(self) -> None:
-        if not self._authorized():
-            self._send(401, "text/plain; charset=utf-8", b"unauthorized\n")
-            return
         path = urlparse(self.path).path.rstrip("/")
+        if path == "/health":
+            self._send(200, "text/plain; charset=utf-8", b"ok\n")
+            return
+        if not self._authorized():
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="Factory Status"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         status = collect_status()
         if path.endswith("/api/status"):
             self._send(200, "application/json", json.dumps(status, indent=2).encode())

@@ -53,3 +53,35 @@ def test_env_reader_ignores_comments(tmp_path: Path) -> None:
     path = tmp_path / "a.env"
     path.write_text("# c\nA='1'\n\nB=2\n")
     assert read_env_file(path) == {"A": "1", "B": "2"}
+
+
+def test_basic_auth_is_required_when_configured(monkeypatch, tmp_path: Path) -> None:
+    import base64
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from openhands_factory import web_status
+
+    monkeypatch.setattr(web_status, "INSTANCES_DIR", tmp_path)
+    monkeypatch.setattr(web_status, "SHARED_DIR", tmp_path)
+    monkeypatch.setenv("FACTORY_WEB_USER", "admin")
+    monkeypatch.setenv("FACTORY_WEB_PASSWORD", "pw")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_status.StatusHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        with urllib.request.urlopen(base + "/health") as response:
+            assert response.status == 200
+        try:
+            urllib.request.urlopen(base + "/api/status")
+            raise AssertionError("expected 401")
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+        request = urllib.request.Request(base + "/api/status")
+        request.add_header("Authorization", "Basic " + base64.b64encode(b"admin:pw").decode())
+        with urllib.request.urlopen(request) as response:
+            assert json.loads(response.read())["instances"] == []
+    finally:
+        server.shutdown()
