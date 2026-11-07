@@ -23,6 +23,8 @@ SECRET_KEYS: dict[str, str] = {
     "TELEGRAM_CHAT_ID": "Telegram chat ID for alerts",
     "FACTORY_DISCORD_WEBHOOK_URL": "Discord webhook URL for alerts",
     "DISCORD_BOT_TOKEN": "Discord bot token (commands)",
+    "DISCORD_CHANNEL_ID": "Discord channel ID the bot listens in",
+    "DISCORD_OPERATOR_IDS": "Discord user IDs allowed to command (comma-separated)",
     "CLOUDFLARE_API_TOKEN": "Cloudflare API token (tunnel hostnames)",
 }
 _VALUE = re.compile(r"^[\x21-\x7e]{1,4096}$")
