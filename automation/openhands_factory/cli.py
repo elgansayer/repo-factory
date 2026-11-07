@@ -111,6 +111,7 @@ def parser() -> argparse.ArgumentParser:
         default="list",
     )
     projects.add_argument("name", nargs="?")
+    subcommands.add_parser("discord-bot")
     web = subcommands.add_parser("web")
     web.add_argument("--listen", default=os.environ.get("FACTORY_WEB_LISTEN", "127.0.0.1:8787"))
     subcommands.add_parser("reconcile")
@@ -226,6 +227,11 @@ def main(arguments: list[str] | None = None) -> int:
                 print(json.dumps(overview["instances"], indent=2))
             else:
                 print(render_projects_table(overview))
+            return 0
+        if args.command == "discord-bot":
+            from openhands_factory.discord_bot import wait_for_bot
+
+            wait_for_bot().run()
             return 0
         if args.command == "web":
             from openhands_factory.web_status import serve
