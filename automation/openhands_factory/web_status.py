@@ -205,6 +205,31 @@ def collect_status(
     }
 
 
+def render_projects_table(status: dict[str, Any]) -> str:
+    """Plain-text project overview for the ``repo-factory projects`` command."""
+
+    header = ("PROJECT", "PRIORITY", "PARALLEL", "STATUS", "RUNNING", "OPEN", "DONE24H")
+    rows = [header]
+    for item in status["instances"]:
+        state = "paused" if item["paused"] else str(item["status"] or "unknown")
+        rows.append(
+            (
+                str(item["name"]),
+                str(item["priority"]),
+                str(item["max_parallel_jobs"] or "-"),
+                state,
+                str(len(item["active_jobs"])),
+                str(item["in_flight"]),
+                str(item["done_last_24h"]),
+            )
+        )
+    widths = [max(len(row[index]) for row in rows) for index in range(len(header))]
+    return "\n".join(
+        "  ".join(cell.ljust(widths[index]) for index, cell in enumerate(row)).rstrip()
+        for row in rows
+    )
+
+
 def _e(value: object) -> str:
     return html.escape("" if value is None else str(value))
 
