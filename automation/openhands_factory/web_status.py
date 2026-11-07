@@ -74,7 +74,8 @@ def _short(value: object) -> str | None:
 
 
 def _job_summary(job: dict[str, Any]) -> dict[str, Any]:
-    task = job.get("task") if isinstance(job.get("task"), dict) else {}
+    raw_task = job.get("task")
+    task: dict[str, Any] = raw_task if isinstance(raw_task, dict) else {}
     return {
         "id": task.get("identifier"),
         "title": _short(task.get("title")),
@@ -171,7 +172,8 @@ def _breakers(shared_dir: Path) -> list[dict[str, Any]]:
 def _host_gate(shared_dir: Path) -> dict[str, Any]:
     payload = _read_json(shared_dir / "host-resource-gate.json")
     payload = payload if isinstance(payload, dict) else {}
-    shared = payload.get("shared") if isinstance(payload.get("shared"), list) else []
+    raw_shared = payload.get("shared")
+    shared: list[Any] = raw_shared if isinstance(raw_shared, list) else []
     return {
         "shared": [
             str(entry.get("owner", "")).split(":")[2:4]
@@ -245,22 +247,30 @@ def render_html(status: dict[str, Any]) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="30"><title>Factory Status</title>
 <style>
-:root{{--bg:#fff;--fg:#1b1b1b;--muted:#666;--line:#ddd;--ok:#1a7f37;--bad:#b42318;--warn:#9a6700}}
-@media (prefers-color-scheme:dark){{:root{{--bg:#111;--fg:#eee;--muted:#999;--line:#333;--ok:#4ac26b;--bad:#ff7b72;--warn:#d29922}}}}
-body{{background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif;margin:0 auto;max-width:1100px;padding:16px}}
-table{{border-collapse:collapse;width:100%;margin:8px 0 20px;display:block;overflow-x:auto}}
-th,td{{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}}
-small{{color:var(--muted)}} .closed{{color:var(--ok)}} .open{{color:var(--bad)}} .half-open{{color:var(--warn)}}
+:root{{--bg:#fff;--fg:#1b1b1b;--muted:#666;--line:#ddd;
+  --ok:#1a7f37;--bad:#b42318;--warn:#9a6700}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#111;--fg:#eee;--muted:#999;
+  --line:#333;--ok:#4ac26b;--bad:#ff7b72;--warn:#d29922}}}}
+body{{background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif;
+  margin:0 auto;max-width:1100px;padding:16px}}
+table{{border-collapse:collapse;width:100%;margin:8px 0 20px;display:block;
+  overflow-x:auto}}
+th,td{{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;
+  vertical-align:top}}
+small{{color:var(--muted)}} .closed{{color:var(--ok)}} .open{{color:var(--bad)}}
+.half-open{{color:var(--warn)}}
 </style></head><body>
-<h1>Factory status</h1><p><small>Generated {_e(status['generated_at'])} · refreshes every 30 s ·
+<h1>Factory status</h1><p><small>Generated {_e(status["generated_at"])} · refreshes every 30 s ·
 <a href="api/status">JSON</a></small></p>
 <table><tr><th>Instance</th><th>Priority</th><th>Status</th><th>Running</th><th>Open</th>
-<th>Done 24h</th><th>Heartbeat</th></tr>{''.join(rows)}</table>
-<h2>Providers</h2><table><tr><th>Provider</th><th>Breaker</th><th>Last failure</th><th>Retry at</th></tr>
+<th>Done 24h</th><th>Heartbeat</th></tr>{"".join(rows)}</table>
+<h2>Providers</h2><table><tr><th>Provider</th><th>Breaker</th><th>Last failure</th>
+<th>Retry at</th></tr>
 {providers}</table>
-<p>Host slots in use: {len(host['shared'])} · verifier exclusive: {'yes' if host['exclusive'] else 'no'}
-· priority demand: {'yes' if host['priority_demand'] else 'no'}</p>
-{''.join(sections)}
+<p>Host slots in use: {len(host["shared"])}
+· verifier exclusive: {"yes" if host["exclusive"] else "no"}
+· priority demand: {"yes" if host["priority_demand"] else "no"}</p>
+{"".join(sections)}
 </body></html>"""
 
 
@@ -276,7 +286,7 @@ class StatusHandler(BaseHTTPRequestHandler):
         supplied = header.removeprefix("Bearer ") if header.startswith("Bearer ") else query
         return hmac.compare_digest(supplied.encode(), token.encode())
 
-    def do_GET(self) -> None:  # noqa: N802 - http.server API
+    def do_GET(self) -> None:
         if not self._authorized():
             self._send(401, "text/plain; charset=utf-8", b"unauthorized\n")
             return
@@ -297,7 +307,7 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: object) -> None:
         return
 
 
