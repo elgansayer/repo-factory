@@ -182,6 +182,13 @@ class HostResourceGate:
         with self.lock:
             payload = self._load_active()
             shared = payload["shared"]
+            if self._explicit_priority is None:
+                self.priority = instance_priority()
+            if self.priority == "high":
+                # Schedulers probe capacity before acquiring. Register demand here
+                # too, or a full host never reserves the next freed slot for us.
+                self._register_priority_demand(payload)
+                self._save(payload)
             if payload["exclusive"] is not None or not isinstance(shared, list):
                 return 0
             return max(self._admission_limit(payload) - len(shared), 0)

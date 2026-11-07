@@ -146,3 +146,15 @@ def test_reservation_never_blocks_a_single_slot_gate(tmp_path: Path) -> None:
     HostResourceGate(path, 1, priority="high").acquire_shared("high")
     HostResourceGate(path, 1, priority="high").release_shared("high")
     assert HostResourceGate(path, 1, priority="normal").acquire_shared("normal")
+
+
+def test_capacity_probe_registers_high_priority_demand_on_a_full_host(tmp_path: Path) -> None:
+    path = tmp_path / "gate.json"
+    high = HostResourceGate(path, 2, priority="high", reserved_slots=1)
+    normal = HostResourceGate(path, 2, priority="normal", reserved_slots=1)
+    assert normal.acquire_shared("normal-1")
+    assert normal.acquire_shared("normal-2")
+    assert high.available_shared_slots() == 0  # full, but demand is now registered
+    normal.release_shared("normal-1")
+    assert not normal.acquire_shared("normal-3")  # freed slot is held for priority
+    assert high.acquire_shared("high-1")
